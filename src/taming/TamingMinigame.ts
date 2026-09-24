@@ -27,11 +27,14 @@ export class TamingMinigame {
   constructor(
     promptCount: number = 6,
     private successRatioNeeded: number = 0.6,
+    /** Scales each prompt's hit window (Bond branch's "Wyrmspeaker" skill widens this). */
+    windowDurationMultiplier: number = 1,
   ) {
+    const windowDuration = 0.35 * windowDurationMultiplier;
     this.prompts = Array.from({ length: promptCount }, (_, i) => ({
       id: i,
       windowStart: 0.6 + i * 0.75,
-      windowDuration: 0.35,
+      windowDuration,
       state: 'pending' as TapPromptState,
     }));
   }

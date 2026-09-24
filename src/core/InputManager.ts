@@ -159,6 +159,16 @@ export class InputManager {
     return this.justPressed.has(action);
   }
 
+  /** Like wasActionPressed, but also removes the press so a later check this
+   * same frame won't see it too - lets one system claim a shared button
+   * (e.g. mountToggle meaning "mount/dismount" vs "start taming") without
+   * every system that checks it reacting to the same press. */
+  consumeAction(action: ActionName): boolean {
+    const was = this.justPressed.has(action);
+    this.justPressed.delete(action);
+    return was;
+  }
+
   // ---- Keyboard -----------------------------------------------------------
 
   private onKeyDown = (e: KeyboardEvent): void => {

@@ -1,6 +1,7 @@
 import { GameManager } from './core/GameManager';
 import { eventBus } from './core/EventBus';
 import { progressionManager } from './progression/ProgressionManager';
+import { combatSystem } from './combat/CombatSystem';
 
 const container = document.getElementById('app');
 if (!container) throw new Error('Missing #app container in index.html');
@@ -13,6 +14,7 @@ if (import.meta.env.DEV) {
   (window as unknown as { __DRAGONBOUND_BUS__: typeof eventBus }).__DRAGONBOUND_BUS__ = eventBus;
   (window as unknown as { __DRAGONBOUND_PROGRESSION__: typeof progressionManager }).__DRAGONBOUND_PROGRESSION__ =
     progressionManager;
+  (window as unknown as { __DRAGONBOUND_COMBAT__: typeof combatSystem }).__DRAGONBOUND_COMBAT__ = combatSystem;
 }
 
 game.init(container).catch((err) => {

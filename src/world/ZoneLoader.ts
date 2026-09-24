@@ -22,7 +22,15 @@ export const startingZone: ZoneDefinition = {
   name: 'Ember Vale',
   groundSize: 60,
   playerSpawn: [0, 1, 8],
-  dragonSpawns: [{ position: [0, 1, -6], displayName: 'Feral Wyrmling', archetype: 'ember-wyrm' }],
+  dragonSpawns: [
+    { position: [0, 1, -6], displayName: 'Feral Wyrmling', archetype: 'ember-wyrm' },
+    // A close pair, far enough from the solo wyrmling above that aggroing
+    // one doesn't also pull it in - demonstrates AggroManager's pack-alert
+    // radius pulling packmates into a fight without needing to design a
+    // whole multi-zone encounter.
+    { position: [11, 1, -10], displayName: 'Pack Wyrmling', archetype: 'ember-wyrm' },
+    { position: [13.5, 1, -11.5], displayName: 'Pack Wyrmling', archetype: 'ember-wyrm' },
+  ],
   props: [
     { position: [-5, 0, 1], scale: 1.4 },
     { position: [6, 0, -2], scale: 1 },

@@ -5,7 +5,8 @@ import { Dragon } from '../entities/Dragon';
 import { TamingMinigame } from './TamingMinigame';
 import { playerStable } from './PlayerStable';
 
-const INTERACT_RANGE = 4;
+export const INTERACT_RANGE = 4;
+const WIDE_TAP_WINDOW_MULTIPLIER = 1.6;
 
 /**
  * Orchestrates the taming flow: once a dragon goes 'wary' (see Dragon's HP
@@ -26,11 +27,13 @@ export class TamingController {
         (d) => d.ai.state === 'wary' && d.object3D.position.distanceTo(knight.object3D.position) <= INTERACT_RANGE,
       );
       if (!candidate) return;
+      if (!input.consumeAction('mountToggle')) return;
 
       this.activeDragon = candidate;
       candidate.ai.transition('bonding');
       candidate.bondMeter.reset();
-      this.minigame = new TamingMinigame();
+      const windowMultiplier = knight.abilities.has('wide-tap-windows') ? WIDE_TAP_WINDOW_MULTIPLIER : 1;
+      this.minigame = new TamingMinigame(6, 0.6, windowMultiplier);
       eventBus.emit('taming:started', { dragonId: candidate.id });
       return;
     }
@@ -50,6 +53,7 @@ export class TamingController {
     if (minigame.succeeded) {
       dragon.ai.transition('tamed');
       dragon.bondMeter.value = 100;
+      dragon.tamedAt = Date.now();
       playerStable.add({
         id: dragon.id,
         name: dragon.displayName,

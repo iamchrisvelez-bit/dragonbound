@@ -6,8 +6,9 @@ import { SaveManager, createDefaultSave, type SaveData } from './SaveManager';
 import { eventBus } from './EventBus';
 import { Knight } from '../entities/Knight';
 import { Dragon } from '../entities/Dragon';
+import { AggroManager } from '../entities/AggroManager';
 import { combatSystem } from '../combat/CombatSystem';
-import { TamingController } from '../taming/TamingController';
+import { TamingController, INTERACT_RANGE } from '../taming/TamingController';
 import { playerStable } from '../taming/PlayerStable';
 import { progressionManager } from '../progression/ProgressionManager';
 import { rollGear } from '../progression/Gear';
@@ -22,6 +23,10 @@ import type { DragonAIState } from '../taming/DragonAI';
 const AUTOSAVE_INTERVAL_SECONDS = 20;
 const MAX_DT = 0.05; // clamp huge frame gaps (tab backgrounded, etc.)
 const RESPAWN_DELAY_SECONDS = 2.5;
+const PACK_ALERT_RADIUS = 7;
+const MOUNTED_MOVE_SPEED = 6.5;
+/** How long a freshly tamed dragon needs before it'll let you ride it, unless Bond's "Saddle-Ready" is unlocked. */
+const MOUNT_SETTLE_DELAY_MS = 6000;
 
 export class GameManager {
   private scene = new THREE.Scene();
@@ -33,6 +38,7 @@ export class GameManager {
   private input = new InputManager();
   private saveManager = new SaveManager();
   private tamingController = new TamingController();
+  private aggroManager = new AggroManager();
   private questLog = new QuestLog(defaultQuests);
 
   private knight!: Knight;
@@ -180,6 +186,7 @@ export class GameManager {
     const dt = Math.min(this.clock.getDelta(), MAX_DT);
 
     this.input.update(dt);
+    this.handleMountToggle();
 
     if (!this.knight.alive) {
       this.respawnTimer -= dt;
@@ -190,7 +197,14 @@ export class GameManager {
       this.knight.handleInput(dt, this.input, this.cameraRig.yaw);
     }
 
-    for (const dragon of this.dragons) dragon.updateAI(dt, this.knight.object3D.position);
+    const mountedDragon = this.mountedDragon();
+    if (mountedDragon) this.updateMountedDragon(mountedDragon);
+
+    this.aggroManager.update(this.dragons, this.knight.object3D.position, PACK_ALERT_RADIUS);
+    for (const dragon of this.dragons) {
+      if (dragon === mountedDragon) continue; // driven directly above, not by its own AI
+      dragon.updateAI(dt, this.knight.object3D.position, this.aggroManager.isAggro(dragon.id));
+    }
     this.tamingController.update(dt, this.input, this.knight, this.dragons);
 
     this.world.step();
@@ -205,7 +219,8 @@ export class GameManager {
       this.cameraRig.toggleLockOn(targets);
     }
     const lookDelta = this.input.consumeLookDelta();
-    this.cameraRig.update(dt, this.knight.object3D.position, lookDelta, this.collidables);
+    const followPosition = mountedDragon ? mountedDragon.object3D.position : this.knight.object3D.position;
+    this.cameraRig.update(dt, followPosition, lookDelta, this.collidables);
 
     this.renderer.render(this.scene, this.cameraRig.camera);
     this.updateHud();
@@ -217,6 +232,68 @@ export class GameManager {
     }
   };
 
+  private mountedDragon(): Dragon | undefined {
+    if (!this.knight.mountedDragonId) return undefined;
+    return this.dragons.find((d) => d.id === this.knight.mountedDragonId);
+  }
+
+  /** Claims the mountToggle press for mount/dismount when applicable, before
+   * TamingController gets a chance to treat it as "start taming". */
+  private handleMountToggle(): void {
+    if (!this.input.wasActionPressed('mountToggle')) return;
+
+    if (this.knight.isMounted) {
+      if (!this.input.consumeAction('mountToggle')) return;
+      this.dismountKnight();
+      return;
+    }
+
+    if (this.tamingController.isActive) return; // mid-minigame, let TamingController own the button
+
+    const candidate = this.dragons.find(
+      (d) =>
+        d.ai.state === 'tamed' &&
+        !d.riddenBy &&
+        d.object3D.position.distanceTo(this.knight.object3D.position) <= INTERACT_RANGE,
+    );
+    if (!candidate) return; // no tamed dragon nearby - leave the press for TamingController (a 'wary' one, maybe)
+
+    const settled = this.knight.abilities.has('instant-mount') || Date.now() - candidate.tamedAt >= MOUNT_SETTLE_DELAY_MS;
+    if (!settled) return; // still settling; press falls through harmlessly
+
+    if (!this.input.consumeAction('mountToggle')) return;
+    this.knight.mount(candidate.id);
+    candidate.riddenBy = this.knight.id;
+  }
+
+  private dismountKnight(): void {
+    const dragon = this.mountedDragon();
+    this.knight.dismount();
+    if (!dragon) return;
+    dragon.riddenBy = null;
+    const landing = dragon.object3D.position.clone().add(new THREE.Vector3(1.6, 0, 0));
+    this.knight.rigidBody?.setTranslation({ x: landing.x, y: landing.y, z: landing.z }, true);
+  }
+
+  /** Drives a ridden dragon straight from input, the same camera-relative
+   * way Knight.handleInput() drives the player (see that method's identical
+   * moveDir math) - Dragon.updateAI() is skipped for it (see riddenBy). */
+  private updateMountedDragon(dragon: Dragon): void {
+    const move = this.input.getMoveVector();
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraRig.yaw);
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(yawQuat);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(yawQuat);
+    const moveDir = new THREE.Vector3().addScaledVector(right, move.x).addScaledVector(forward, -move.y);
+
+    if (moveDir.lengthSq() > 0.0001) {
+      moveDir.normalize();
+      const yaw = Math.atan2(-moveDir.x, -moveDir.z);
+      dragon.applyExternalMovement(moveDir.multiplyScalar(MOUNTED_MOVE_SPEED), yaw);
+    } else {
+      dragon.applyExternalMovement(new THREE.Vector3(0, 0, 0), dragon.facingYaw);
+    }
+  }
+
   private updateHud(): void {
     let prompt: string | null = null;
     let bond: number | null = null;
@@ -224,11 +301,24 @@ export class GameManager {
     if (this.tamingController.isActive) {
       prompt = 'Tap Attack on the beat to bond!';
       bond = this.tamingController.currentDragon?.bondMeter.value ?? 0;
+    } else if (this.knight.isMounted) {
+      prompt = 'Tap Mount to dismount';
     } else {
       const nearWary = this.dragons.find(
-        (d) => d.ai.state === 'wary' && d.object3D.position.distanceTo(this.knight.object3D.position) <= 4,
+        (d) => d.ai.state === 'wary' && d.object3D.position.distanceTo(this.knight.object3D.position) <= INTERACT_RANGE,
       );
-      if (nearWary) prompt = 'Tap Mount to begin taming';
+      const nearTamed = this.dragons.find(
+        (d) =>
+          d.ai.state === 'tamed' &&
+          !d.riddenBy &&
+          d.object3D.position.distanceTo(this.knight.object3D.position) <= INTERACT_RANGE,
+      );
+      if (nearWary) {
+        prompt = 'Tap Mount to begin taming';
+      } else if (nearTamed) {
+        const settled = this.knight.abilities.has('instant-mount') || Date.now() - nearTamed.tamedAt >= MOUNT_SETTLE_DELAY_MS;
+        prompt = settled ? 'Tap Mount to ride' : 'Dragon is still settling...';
+      }
     }
 
     this.hud.update({

@@ -19,16 +19,9 @@ export interface StatModifiers {
   maxStaminaBonus: number;
   staminaRegenMultiplier: number;
   bondGainMultiplier: number;
+  /** abilityId set from every unlocked `unlock-ability` skill node (riposte, evasive-roll, wide-tap-windows, instant-mount, ...). */
+  abilities: Set<string>;
 }
-
-const IDENTITY_MODIFIERS: StatModifiers = {
-  attackDamageFlat: 0,
-  attackDamageMultiplier: 1,
-  maxHealthBonus: 0,
-  maxStaminaBonus: 0,
-  staminaRegenMultiplier: 1,
-  bondGainMultiplier: 1,
-};
 
 /**
  * Runtime owner of the player's unlocked skill nodes, skill points, and
@@ -123,16 +116,30 @@ export class ProgressionManager {
     return items;
   }
 
-  /** Sums unlocked skill nodes + equipped gear into the multipliers/bonuses Knight applies. */
+  /** Sums unlocked skill nodes + equipped gear into the multipliers/bonuses/abilities Knight applies. */
   getModifiers(): StatModifiers {
-    const mods = { ...IDENTITY_MODIFIERS };
+    const mods: StatModifiers = {
+      attackDamageFlat: 0,
+      attackDamageMultiplier: 1,
+      maxHealthBonus: 0,
+      maxStaminaBonus: 0,
+      staminaRegenMultiplier: 1,
+      bondGainMultiplier: 1,
+      abilities: new Set<string>(),
+    };
     let attackDamagePercent = 0;
     let staminaRegenPercent = 0;
     let bondGainPercent = 0;
 
     for (const nodeId of this.unlockedNodeIds) {
       const node = findSkillNode(nodeId);
-      if (!node || node.effect.type !== 'stat') continue;
+      if (!node) continue;
+
+      if (node.effect.type === 'unlock-ability') {
+        mods.abilities.add(node.effect.abilityId);
+        continue;
+      }
+
       const amount = node.effect.amount;
       switch (node.effect.stat) {
         case 'attackDamage':

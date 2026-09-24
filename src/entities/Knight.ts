@@ -14,12 +14,24 @@ const UP = new THREE.Vector3(0, 1, 0);
 const DODGE_STAMINA_COST = 18;
 const DODGE_SPEED = 9;
 const DODGE_DURATION = 0.28;
+/** Ward branch's "Evasive Roll" skill multiplies dodge i-frame duration by this. */
+const EVASIVE_ROLL_IFRAME_MULTIPLIER = 1.5;
 const MOVE_SPEED = 4.2;
 const BLOCK_MOVE_MULTIPLIER = 0.35;
 const BLOCK_STAMINA_DRAIN_PER_SECOND = 14;
+const BLOCK_DAMAGE_REDUCTION = 0.65;
 const TURN_SPEED = 12; // higher = snappier facing
 const BASE_MAX_HEALTH = 100;
 const BASE_MAX_STAMINA = 100;
+
+// Riposte (Blade branch): the Ability Wheel button opens a brief parry
+// window - if a hit lands while it's open, it's fully negated and
+// countered with a bonus-damage strike instead of just being blocked.
+const PARRY_WINDOW_DURATION = 0.35;
+const PARRY_STAMINA_COST = 15;
+const PARRY_COOLDOWN = 1.6;
+const RIPOSTE_BASE_DAMAGE = 26;
+const RIPOSTE_STAMINA_REFUND = 20;
 
 export class Knight extends Entity {
   readonly stamina = new StaminaPool(BASE_MAX_STAMINA, 18, 0.6);
@@ -34,10 +46,16 @@ export class Knight extends Entity {
   attackDamageMultiplier = 1;
   attackDamageFlat = 0;
   bondGainMultiplier = 1;
+  /** abilityIds unlocked via skill-tree `unlock-ability` nodes (riposte, evasive-roll, wide-tap-windows, instant-mount). */
+  abilities = new Set<string>();
 
   private dodgeTimer = 0;
   private dodgeDirection = new THREE.Vector3(0, 0, -1);
   private attackRecoveryTimer = 0;
+  /** Invulnerability window; starts equal to dodgeTimer but can outlast it (Evasive Roll). */
+  private iFrameTimer = 0;
+  private parryTimer = 0;
+  private parryCooldown = 0;
   private visual: THREE.Object3D;
 
   constructor(world: RAPIER.World, startPosition: THREE.Vector3) {
@@ -85,6 +103,7 @@ export class Knight extends Entity {
     this.attackDamageMultiplier = mods.attackDamageMultiplier;
     this.attackDamageFlat = mods.attackDamageFlat;
     this.bondGainMultiplier = mods.bondGainMultiplier;
+    this.abilities = mods.abilities;
   }
 
   get isMounted(): boolean {
@@ -95,7 +114,10 @@ export class Knight extends Entity {
   handleInput(dt: number, input: InputManager, cameraYaw: number): void {
     this.stamina.tick(dt);
     if (this.dodgeTimer > 0) this.dodgeTimer = Math.max(0, this.dodgeTimer - dt);
+    if (this.iFrameTimer > 0) this.iFrameTimer = Math.max(0, this.iFrameTimer - dt);
     if (this.attackRecoveryTimer > 0) this.attackRecoveryTimer = Math.max(0, this.attackRecoveryTimer - dt);
+    if (this.parryTimer > 0) this.parryTimer = Math.max(0, this.parryTimer - dt);
+    if (this.parryCooldown > 0) this.parryCooldown = Math.max(0, this.parryCooldown - dt);
 
     this.isDodging = this.dodgeTimer > 0;
 
@@ -116,8 +138,15 @@ export class Knight extends Entity {
     if (!this.isMounted && !this.isDodging && input.wasActionPressed('dodge') && this.stamina.spend(DODGE_STAMINA_COST)) {
       this.dodgeDirection = hasMoveInput ? moveDir.clone() : forward.clone();
       this.dodgeTimer = DODGE_DURATION;
+      this.iFrameTimer = DODGE_DURATION * (this.abilities.has('evasive-roll') ? EVASIVE_ROLL_IFRAME_MULTIPLIER : 1);
       this.isDodging = true;
       this.attackRecoveryTimer = 0;
+    }
+
+    // Ability Wheel: currently activates Riposte's parry stance if unlocked.
+    // More active abilities would branch here as they're added.
+    if (!this.isMounted && input.wasActionPressed('abilityWheel')) {
+      this.tryActivateRiposteParry();
     }
 
     // Attack trigger
@@ -174,6 +203,7 @@ export class Knight extends Entity {
 
   mount(dragonId: string): void {
     this.mountedDragonId = dragonId;
+    this.object3D.visible = false; // placeholder art has no saddle/seat bone - just hide the rider
     eventBus.emit('player:mounted', { dragonId });
   }
 
@@ -181,12 +211,42 @@ export class Knight extends Entity {
     if (!this.mountedDragonId) return;
     const dragonId = this.mountedDragonId;
     this.mountedDragonId = null;
+    this.object3D.visible = true;
     eventBus.emit('player:dismounted', { dragonId });
   }
 
   override takeDamage(amount: number, sourceId?: string): void {
-    if (this.isDodging) return; // brief i-frames while dodging
-    super.takeDamage(amount, sourceId);
+    if (this.iFrameTimer > 0) return; // dodge invulnerability (extended by Evasive Roll)
+    if (this.parryTimer > 0) {
+      this.parryTimer = 0;
+      this.performRiposte();
+      return;
+    }
+    const mitigated = this.isBlocking ? amount * (1 - BLOCK_DAMAGE_REDUCTION) : amount;
+    super.takeDamage(mitigated, sourceId);
+  }
+
+  private tryActivateRiposteParry(): void {
+    if (!this.abilities.has('riposte')) return;
+    if (this.parryCooldown > 0) return;
+    if (!this.stamina.spend(PARRY_STAMINA_COST)) return;
+    this.parryTimer = PARRY_WINDOW_DURATION;
+    this.parryCooldown = PARRY_COOLDOWN;
+  }
+
+  private performRiposte(): void {
+    const damage = Math.round((RIPOSTE_BASE_DAMAGE + this.attackDamageFlat) * this.attackDamageMultiplier);
+    combatSystem.spawnHitbox({
+      ownerId: this.id,
+      damage,
+      radius: 1.3,
+      duration: 0.2,
+      getPosition: () => {
+        const fwd = new THREE.Vector3(0, 0, -1).applyAxisAngle(UP, this.facingYaw);
+        return this.object3D.position.clone().addScaledVector(fwd, 1.3).setY(this.object3D.position.y + 1);
+      },
+    });
+    this.stamina.current = Math.min(this.stamina.max, this.stamina.current + RIPOSTE_STAMINA_REFUND);
   }
 
   protected override onDamaged(amount: number): void {
