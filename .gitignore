@@ -1,0 +1,19 @@
+node_modules/
+dist/
+dist-ssr/
+dev-dist/
+.DS_Store
+*.local
+
+# Real art assets are dropped in locally / fetched separately; keep the
+# repo small and let AssetLoader's placeholder fallback cover their absence.
+assets/models/*
+!assets/models/.gitkeep
+assets/animations/*
+!assets/animations/.gitkeep
+assets/textures/*
+!assets/textures/.gitkeep
+
+*.log
+.vscode/*
+!.vscode/extensions.json
