@@ -63,9 +63,11 @@ export class GameManager {
 
     const spawn = new THREE.Vector3(...save.player.position);
     this.knight = new Knight(this.world, spawn);
-    this.knight.health = save.player.health;
-    this.knight.maxHealth = save.player.maxHealth;
-    this.knight.stamina.current = save.player.stamina;
+    // maxHealth/maxStamina are already authoritative from progression (set by
+    // the constructor's applyProgressionModifiers()) - only clamp the saved
+    // current values against them, don't overwrite the computed maxes.
+    this.knight.health = Math.min(save.player.health, this.knight.maxHealth);
+    this.knight.stamina.current = Math.min(save.player.stamina, this.knight.stamina.max);
     this.knight.facingYaw = save.player.yaw;
     this.scene.add(this.knight.object3D);
 

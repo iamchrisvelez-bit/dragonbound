@@ -5,6 +5,8 @@
  */
 export class StaminaPool {
   current: number;
+  /** Set from ProgressionManager's modifiers (Ward branch's "Steady Breath" etc). */
+  regenMultiplier = 1;
   private sinceLastSpend = Number.POSITIVE_INFINITY;
 
   constructor(
@@ -38,7 +40,7 @@ export class StaminaPool {
   tick(dt: number): void {
     this.sinceLastSpend += dt;
     if (this.sinceLastSpend >= this.regenDelay && this.current < this.max) {
-      this.current = Math.min(this.max, this.current + this.regenPerSecond * dt);
+      this.current = Math.min(this.max, this.current + this.regenPerSecond * this.regenMultiplier * dt);
     }
   }
 

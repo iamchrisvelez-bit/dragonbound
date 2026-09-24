@@ -4,6 +4,33 @@ import { canUnlockNode, findSkillNode } from './SkillTree';
 import { type RolledGearItem, type GearSlot } from './Gear';
 
 /**
+ * Combined effect of every unlocked skill node and every equipped gear
+ * item, in the units Knight actually applies them in: skill `attackDamage`
+ * (and `staminaRegen`/`bondGainRate`) are percentages that stack into a
+ * multiplier, while `maxHealth`/`maxStamina` (from both skills and gear)
+ * and gear's `attackDamage` are flat additions. Gear's `bondGainRate` is
+ * small enough (0.02-0.06) to fold into the same percentage pool as the
+ * skill tree's Bond branch rather than needing its own unit.
+ */
+export interface StatModifiers {
+  attackDamageFlat: number;
+  attackDamageMultiplier: number;
+  maxHealthBonus: number;
+  maxStaminaBonus: number;
+  staminaRegenMultiplier: number;
+  bondGainMultiplier: number;
+}
+
+const IDENTITY_MODIFIERS: StatModifiers = {
+  attackDamageFlat: 0,
+  attackDamageMultiplier: 1,
+  maxHealthBonus: 0,
+  maxStaminaBonus: 0,
+  staminaRegenMultiplier: 1,
+  bondGainMultiplier: 1,
+};
+
+/**
  * Runtime owner of the player's unlocked skill nodes, skill points, and
  * gear inventory/loadout. GameManager loads this from SaveManager on boot
  * and reads toSaveData() back out when saving.
@@ -85,6 +112,60 @@ export class ProgressionManager {
   getEquipped(slot: GearSlot): RolledGearItem | undefined {
     const instanceId = this.equipped.get(slot);
     return instanceId ? this.inventory.find((g) => g.instanceId === instanceId) : undefined;
+  }
+
+  private equippedItems(): RolledGearItem[] {
+    const items: RolledGearItem[] = [];
+    for (const instanceId of this.equipped.values()) {
+      const item = this.inventory.find((g) => g.instanceId === instanceId);
+      if (item) items.push(item);
+    }
+    return items;
+  }
+
+  /** Sums unlocked skill nodes + equipped gear into the multipliers/bonuses Knight applies. */
+  getModifiers(): StatModifiers {
+    const mods = { ...IDENTITY_MODIFIERS };
+    let attackDamagePercent = 0;
+    let staminaRegenPercent = 0;
+    let bondGainPercent = 0;
+
+    for (const nodeId of this.unlockedNodeIds) {
+      const node = findSkillNode(nodeId);
+      if (!node || node.effect.type !== 'stat') continue;
+      const amount = node.effect.amount;
+      switch (node.effect.stat) {
+        case 'attackDamage':
+          attackDamagePercent += amount;
+          break;
+        case 'maxHealth':
+          mods.maxHealthBonus += amount;
+          break;
+        case 'maxStamina':
+          mods.maxStaminaBonus += amount;
+          break;
+        case 'staminaRegen':
+          staminaRegenPercent += amount;
+          break;
+        case 'bondGainRate':
+          bondGainPercent += amount;
+          break;
+      }
+    }
+
+    for (const item of this.equippedItems()) {
+      const stats = item.rolledStats;
+      if (stats.attackDamage) mods.attackDamageFlat += stats.attackDamage;
+      if (stats.maxHealth) mods.maxHealthBonus += stats.maxHealth;
+      if (stats.maxStamina) mods.maxStaminaBonus += stats.maxStamina;
+      if (stats.bondGainRate) bondGainPercent += stats.bondGainRate;
+      // stats.armor: no incoming-damage/armor system yet, so it's rolled but not applied.
+    }
+
+    mods.attackDamageMultiplier = 1 + attackDamagePercent;
+    mods.staminaRegenMultiplier = 1 + staminaRegenPercent;
+    mods.bondGainMultiplier = 1 + bondGainPercent;
+    return mods;
   }
 
   equip(instanceId: string): boolean {

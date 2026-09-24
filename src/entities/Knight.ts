@@ -8,6 +8,7 @@ import { StaminaPool } from '../combat/Stamina';
 import { ComboSystem } from '../combat/ComboSystem';
 import { combatSystem } from '../combat/CombatSystem';
 import { lerpAngle } from '../core/mathUtils';
+import { progressionManager } from '../progression/ProgressionManager';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const DODGE_STAMINA_COST = 18;
@@ -17,9 +18,11 @@ const MOVE_SPEED = 4.2;
 const BLOCK_MOVE_MULTIPLIER = 0.35;
 const BLOCK_STAMINA_DRAIN_PER_SECOND = 14;
 const TURN_SPEED = 12; // higher = snappier facing
+const BASE_MAX_HEALTH = 100;
+const BASE_MAX_STAMINA = 100;
 
 export class Knight extends Entity {
-  readonly stamina = new StaminaPool(100, 18, 0.6);
+  readonly stamina = new StaminaPool(BASE_MAX_STAMINA, 18, 0.6);
   readonly combo = new ComboSystem();
 
   facingYaw = 0;
@@ -27,13 +30,18 @@ export class Knight extends Entity {
   isBlocking = false;
   mountedDragonId: string | null = null;
 
+  /** Live totals from ProgressionManager (unlocked skills + equipped gear); recomputed on change. */
+  attackDamageMultiplier = 1;
+  attackDamageFlat = 0;
+  bondGainMultiplier = 1;
+
   private dodgeTimer = 0;
   private dodgeDirection = new THREE.Vector3(0, 0, -1);
   private attackRecoveryTimer = 0;
   private visual: THREE.Object3D;
 
   constructor(world: RAPIER.World, startPosition: THREE.Vector3) {
-    super('knight', 100);
+    super('knight', BASE_MAX_HEALTH);
 
     this.visual = buildKnightPlaceholder();
     this.object3D.add(this.visual);
@@ -50,7 +58,33 @@ export class Knight extends Entity {
     this.collider = world.createCollider(colliderDesc, this.rigidBody);
 
     combatSystem.registerHurtbox(this);
+    this.applyProgressionModifiers();
+    eventBus.on('progression:skill-unlocked', () => this.applyProgressionModifiers());
+    eventBus.on('progression:gear-equipped', () => this.applyProgressionModifiers());
     void this.loadRealModel();
+  }
+
+  /** Recomputes max health/stamina, stamina regen rate, attack damage, and bond
+   * gain rate from ProgressionManager. Called on construction and whenever a
+   * skill node is unlocked or gear is (re)equipped. A max-stat increase grants
+   * the same amount of current health/stamina immediately (standard levelup feel). */
+  private applyProgressionModifiers(): void {
+    const mods = progressionManager.getModifiers();
+
+    const newMaxHealth = BASE_MAX_HEALTH + mods.maxHealthBonus;
+    const healthGain = Math.max(0, newMaxHealth - this.maxHealth);
+    this.maxHealth = newMaxHealth;
+    this.health = Math.min(this.maxHealth, this.health + healthGain);
+
+    const newMaxStamina = BASE_MAX_STAMINA + mods.maxStaminaBonus;
+    const staminaGain = Math.max(0, newMaxStamina - this.stamina.max);
+    this.stamina.max = newMaxStamina;
+    this.stamina.current = Math.min(this.stamina.max, this.stamina.current + staminaGain);
+    this.stamina.regenMultiplier = mods.staminaRegenMultiplier;
+
+    this.attackDamageMultiplier = mods.attackDamageMultiplier;
+    this.attackDamageFlat = mods.attackDamageFlat;
+    this.bondGainMultiplier = mods.bondGainMultiplier;
   }
 
   get isMounted(): boolean {
@@ -92,9 +126,10 @@ export class Knight extends Entity {
       if (this.stamina.spend(attack.staminaCost)) {
         this.attackRecoveryTimer = attack.recoveryDuration;
         eventBus.emit('combat:attack-started', { attackerId: this.id, comboIndex: this.combo.comboIndex });
+        const damage = Math.round((attack.damage + this.attackDamageFlat) * this.attackDamageMultiplier);
         combatSystem.spawnHitbox({
           ownerId: this.id,
-          damage: attack.damage,
+          damage,
           radius: attack.hitboxRadius,
           duration: attack.activeDuration,
           getPosition: () => {

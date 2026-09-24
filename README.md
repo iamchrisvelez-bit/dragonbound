@@ -94,14 +94,17 @@ which one is in use.
   `AnimationClip[]` a dropped-in glTF carries, but nothing currently
   builds an `AnimationMixer`/state graph from them.
 - **Ability wheel** is wired as an input button and held-action state,
-  but nothing consumes it yet — no actual abilities are implemented.
-- **Skill tree effects aren't applied to gameplay stats**: unlocking a
-  node updates `ProgressionManager`'s unlocked set and emits an event,
-  but Knight/Dragon stats don't yet read from it (e.g. "Honed Edge" is
-  recorded as unlocked but doesn't actually add +10% damage yet).
-- **Gear the same way**: equipping an item updates `ProgressionManager`
-  and emits an event, but Knight doesn't read equipped gear into its
-  combat stats yet.
+  but nothing consumes it yet — no actual abilities are implemented, so
+  `unlock-ability` skill nodes (Riposte, Evasive Roll, Wyrmspeaker,
+  Saddle-Ready) are recorded as unlocked but don't change behavior yet.
+- **`stat`-type skill nodes and gear stats *are* applied**: unlocked
+  Blade/Ward/Bond `stat` effects and every equipped item's `rolledStats`
+  feed `ProgressionManager.getModifiers()`, which `Knight` recomputes
+  live (on construction and on every unlock/equip event) into actual
+  attack damage, max health/stamina, stamina regen rate, and BondMeter
+  gain rate — see `src/progression/ProgressionManager.ts`. Gear's
+  `armor` stat is rolled but not applied yet (no incoming-damage
+  mitigation system exists).
 - **Dragon AI is a single lunge-attack pattern** on a cooldown — no
   attack variety, no ranged/breath attack, no group/pack behavior.
 - **Taming a zone's dragon doesn't persist that specific dragon as

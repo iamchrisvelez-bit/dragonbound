@@ -1,5 +1,6 @@
 import { GameManager } from './core/GameManager';
 import { eventBus } from './core/EventBus';
+import { progressionManager } from './progression/ProgressionManager';
 
 const container = document.getElementById('app');
 if (!container) throw new Error('Missing #app container in index.html');
@@ -10,6 +11,8 @@ if (import.meta.env.DEV) {
   // Dev-only escape hatch for poking at live state from the browser console.
   (window as unknown as { __DRAGONBOUND__: GameManager }).__DRAGONBOUND__ = game;
   (window as unknown as { __DRAGONBOUND_BUS__: typeof eventBus }).__DRAGONBOUND_BUS__ = eventBus;
+  (window as unknown as { __DRAGONBOUND_PROGRESSION__: typeof progressionManager }).__DRAGONBOUND_PROGRESSION__ =
+    progressionManager;
 }
 
 game.init(container).catch((err) => {

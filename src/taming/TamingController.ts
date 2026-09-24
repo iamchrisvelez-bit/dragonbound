@@ -41,7 +41,7 @@ export class TamingController {
 
     if (input.wasActionPressed('attack')) {
       const hit = minigame.registerTap();
-      if (hit) dragon.bondMeter.increase(100 / minigame.prompts.length);
+      if (hit) dragon.bondMeter.increase((100 / minigame.prompts.length) * knight.bondGainMultiplier);
     }
     eventBus.emit('taming:progress', { dragonId: dragon.id, bond: dragon.bondMeter.value });
 
