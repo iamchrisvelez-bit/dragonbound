@@ -15,6 +15,8 @@ export interface HudState {
   bond: number | null;
   /** contextual hint line, e.g. "Tap Mount to begin taming" */
   prompt: string | null;
+  /** null hides the riding badge; set to the mount's display name while mounted */
+  riding: string | null;
   minimapEntities: MinimapEntity[];
 }
 
@@ -26,6 +28,7 @@ export class HUD {
   private bondTrack: HTMLDivElement;
   private bondFill: HTMLDivElement;
   private promptEl: HTMLDivElement;
+  private ridingEl: HTMLDivElement;
   private minimapCanvas: HTMLCanvasElement;
   private minimapCtx: CanvasRenderingContext2D;
 
@@ -66,6 +69,10 @@ export class HUD {
     this.promptEl.className = 'db-prompt db-hidden';
     this.root.appendChild(this.promptEl);
 
+    this.ridingEl = document.createElement('div');
+    this.ridingEl.className = 'db-riding-badge db-hidden';
+    this.root.appendChild(this.ridingEl);
+
     this.minimapCanvas = document.createElement('canvas');
     this.minimapCanvas.width = 140;
     this.minimapCanvas.height = 140;
@@ -90,6 +97,13 @@ export class HUD {
       this.promptEl.classList.remove('db-hidden');
     } else {
       this.promptEl.classList.add('db-hidden');
+    }
+
+    if (state.riding) {
+      this.ridingEl.textContent = `Riding: ${state.riding}`;
+      this.ridingEl.classList.remove('db-hidden');
+    } else {
+      this.ridingEl.classList.add('db-hidden');
     }
 
     this.drawMinimap(state.minimapEntities);
@@ -210,6 +224,21 @@ function injectStyles(): void {
       width: 110px;
       height: 110px;
       border-radius: 50%;
+    }
+
+    .db-riding-badge {
+      position: absolute;
+      left: 50%;
+      top: max(44px, calc(env(safe-area-inset-top, 0px) + 44px));
+      transform: translateX(-50%);
+      background: rgba(111, 191, 115, 0.18);
+      border: 1px solid rgba(111, 191, 115, 0.55);
+      color: #a8e0ac;
+      border-radius: 999px;
+      padding: 3px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
     }
   `;
   document.head.appendChild(style);

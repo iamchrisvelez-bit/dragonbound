@@ -33,6 +33,42 @@ const PARRY_COOLDOWN = 1.6;
 const RIPOSTE_BASE_DAMAGE = 26;
 const RIPOSTE_STAMINA_REFUND = 20;
 
+// Animation state graph: clip names from KayKit's Knight.glb (see
+// assets/CREDITS.md). Only used once the real model has loaded - the
+// placeholder mesh has no skeleton, so playAnimation() no-ops gracefully
+// until then (loadRealModel builds `actions` after the swap).
+const ANIM_IDLE = 'Idle';
+const ANIM_RUN = 'Running_A';
+const ANIM_DODGE = 'Dodge_Forward';
+const ANIM_BLOCK = 'Blocking';
+const ANIM_HIT = 'Hit_A';
+const ANIM_DEATH = 'Death_A';
+const ANIMATION_CLIP_NAMES = [
+  ANIM_IDLE,
+  ANIM_RUN,
+  '1H_Melee_Attack_Chop',
+  '1H_Melee_Attack_Slice_Diagonal',
+  '1H_Melee_Attack_Slice_Horizontal',
+  ANIM_DODGE,
+  ANIM_BLOCK,
+  ANIM_HIT,
+  ANIM_DEATH,
+];
+const ONE_SHOT_ANIMATIONS = new Set([
+  '1H_Melee_Attack_Chop',
+  '1H_Melee_Attack_Slice_Diagonal',
+  '1H_Melee_Attack_Slice_Horizontal',
+  ANIM_DODGE,
+  ANIM_HIT,
+  ANIM_DEATH,
+]);
+const ATTACK_ANIMATION_BY_NAME: Record<string, string> = {
+  'slash-1': '1H_Melee_Attack_Chop',
+  'slash-2': '1H_Melee_Attack_Slice_Diagonal',
+  'slash-3-heavy': '1H_Melee_Attack_Slice_Horizontal',
+};
+const ANIMATION_CROSSFADE = 0.12;
+
 export class Knight extends Entity {
   readonly stamina = new StaminaPool(BASE_MAX_STAMINA, 18, 0.6);
   readonly combo = new ComboSystem();
@@ -56,7 +92,14 @@ export class Knight extends Entity {
   private iFrameTimer = 0;
   private parryTimer = 0;
   private parryCooldown = 0;
+  private isMoving = false;
+  private hitReactionTimer = 0;
   private visual: THREE.Object3D;
+
+  private mixer: THREE.AnimationMixer | null = null;
+  private animActions = new Map<string, THREE.AnimationAction>();
+  private currentAnimName: string | null = null;
+  private pendingAttackAnim: { name: string; duration: number } | null = null;
 
   constructor(world: RAPIER.World, startPosition: THREE.Vector3) {
     super('knight', BASE_MAX_HEALTH);
@@ -130,6 +173,7 @@ export class Knight extends Entity {
       .addScaledVector(forward, -move.y);
     const hasMoveInput = moveDir.lengthSq() > 0.0001;
     if (hasMoveInput) moveDir.normalize();
+    this.isMoving = hasMoveInput && !this.isMounted;
 
     this.isBlocking = !this.isMounted && input.isActionHeld('block') && this.stamina.current > 0 && this.dodgeTimer <= 0;
     if (this.isBlocking) this.stamina.drain(BLOCK_STAMINA_DRAIN_PER_SECOND, dt);
@@ -154,6 +198,10 @@ export class Knight extends Entity {
       const attack = this.combo.next(performance.now() / 1000);
       if (this.stamina.spend(attack.staminaCost)) {
         this.attackRecoveryTimer = attack.recoveryDuration;
+        this.pendingAttackAnim = {
+          name: ATTACK_ANIMATION_BY_NAME[attack.name] ?? '1H_Melee_Attack_Chop',
+          duration: attack.activeDuration + attack.recoveryDuration,
+        };
         eventBus.emit('combat:attack-started', { attackerId: this.id, comboIndex: this.combo.comboIndex });
         const damage = Math.round((attack.damage + this.attackDamageFlat) * this.attackDamageMultiplier);
         combatSystem.spawnHitbox({
@@ -250,6 +298,7 @@ export class Knight extends Entity {
   }
 
   protected override onDamaged(amount: number): void {
+    this.hitReactionTimer = this.animActions.get(ANIM_HIT)?.getClip().duration ?? 0.4;
     eventBus.emit('player:damaged', { amount, currentHealth: this.health, maxHealth: this.maxHealth });
   }
 
@@ -266,12 +315,73 @@ export class Knight extends Entity {
     this.facingYaw = lerpAngle(this.facingYaw, targetYaw, Math.min(1, t));
   }
 
+  /** Advances the animation mixer and picks the right clip for the current
+   * state, in priority order (dead beats hit-reaction beats dodge beats
+   * attack beats block beats movement beats idle). Called every frame by
+   * GameManager regardless of alive/mounted state, so Death_A keeps playing
+   * through the respawn delay and mixer time never stalls. No-ops until the
+   * real model (and its actions) has finished loading. */
+  updateAnimationMixer(dt: number): void {
+    if (this.hitReactionTimer > 0) this.hitReactionTimer = Math.max(0, this.hitReactionTimer - dt);
+
+    if (!this.alive) {
+      this.playAnimation(ANIM_DEATH);
+    } else if (this.isMounted) {
+      this.playAnimation(ANIM_IDLE);
+    } else if (this.hitReactionTimer > 0) {
+      this.playAnimation(ANIM_HIT);
+    } else if (this.isDodging) {
+      this.playAnimation(ANIM_DODGE, DODGE_DURATION);
+    } else if (this.attackRecoveryTimer > 0 && this.pendingAttackAnim) {
+      this.playAnimation(this.pendingAttackAnim.name, this.pendingAttackAnim.duration);
+    } else if (this.isBlocking) {
+      this.playAnimation(ANIM_BLOCK);
+    } else if (this.isMoving) {
+      this.playAnimation(ANIM_RUN);
+    } else {
+      this.playAnimation(ANIM_IDLE);
+    }
+
+    this.mixer?.update(dt);
+  }
+
+  /** Crossfades to `name`, scaling one-shot clips to finish in `targetDuration`
+   * seconds (real KayKit clips run 0.7-1.1s; our combat timing is much
+   * snappier, so attacks/dodges play sped-up rather than getting cut off
+   * mid-swing). No-op if that clip isn't loaded yet or is already playing. */
+  private playAnimation(name: string, targetDuration?: number): void {
+    if (this.currentAnimName === name) return;
+    const action = this.animActions.get(name);
+    if (!action) return;
+
+    const previousName = this.currentAnimName;
+    this.currentAnimName = name;
+
+    const oneShot = ONE_SHOT_ANIMATIONS.has(name);
+    const clipDuration = action.getClip().duration;
+    action.reset();
+    action.setLoop(oneShot ? THREE.LoopOnce : THREE.LoopRepeat, oneShot ? 1 : Infinity);
+    action.clampWhenFinished = oneShot;
+    action.timeScale = targetDuration && clipDuration > 0 ? clipDuration / targetDuration : 1;
+    action.fadeIn(ANIMATION_CROSSFADE);
+    action.play();
+
+    if (previousName) this.animActions.get(previousName)?.fadeOut(ANIMATION_CROSSFADE);
+  }
+
   private async loadRealModel(): Promise<void> {
     const loaded = await assetLoader.loadModel('knight', () => ({ scene: buildKnightPlaceholder(), animations: [] }));
     if (loaded.animations.length === 0) return; // still just the placeholder shape; nothing to swap visually
     this.object3D.remove(this.visual);
     this.visual = loaded.scene;
     this.object3D.add(this.visual);
+
+    this.mixer = new THREE.AnimationMixer(this.visual);
+    for (const name of ANIMATION_CLIP_NAMES) {
+      const clip = THREE.AnimationClip.findByName(loaded.animations, name);
+      if (clip) this.animActions.set(name, this.mixer.clipAction(clip));
+      else console.warn(`[Knight] animation clip "${name}" not found in knight.glb`);
+    }
   }
 }
 

@@ -14,11 +14,20 @@ import { progressionManager } from '../progression/ProgressionManager';
 import { rollGear } from '../progression/Gear';
 import { zoneLoader, startingZone } from '../world/ZoneLoader';
 import { QuestLog, defaultQuests } from '../world/QuestLog';
+import { DialogueSystem } from '../world/DialogueSystem';
 import { TouchControls } from '../ui/TouchControls';
 import { HUD } from '../ui/HUD';
 import { InventoryScreen } from '../ui/InventoryScreen';
+import { QuestTracker } from '../ui/QuestTracker';
+import { DialogueBox } from '../ui/DialogueBox';
 import type { MinimapEntity } from '../ui/HUD';
 import type { DragonAIState } from '../taming/DragonAI';
+
+const INTRO_DIALOGUE = [
+  { speaker: 'Wind over Ember Vale', text: 'The dragons here have not seen a knight in a generation.' },
+  { speaker: 'Old Instinct', text: 'Weaken one, and it may yet be reasoned with - rather than slain.' },
+  { speaker: 'Old Instinct', text: 'Get close. Tap Mount once it stops fighting back.' },
+];
 
 const AUTOSAVE_INTERVAL_SECONDS = 20;
 const MAX_DT = 0.05; // clamp huge frame gaps (tab backgrounded, etc.)
@@ -40,6 +49,7 @@ export class GameManager {
   private tamingController = new TamingController();
   private aggroManager = new AggroManager();
   private questLog = new QuestLog(defaultQuests);
+  private dialogueSystem = new DialogueSystem();
 
   private knight!: Knight;
   private dragons: Dragon[] = [];
@@ -48,6 +58,8 @@ export class GameManager {
   private touchControls!: TouchControls;
   private hud!: HUD;
   private inventoryScreen!: InventoryScreen;
+  private questTracker!: QuestTracker;
+  private dialogueBox!: DialogueBox;
 
   private autosaveTimer = 0;
   private respawnTimer = 0;
@@ -87,10 +99,13 @@ export class GameManager {
     this.touchControls = new TouchControls(this.input);
     this.hud = new HUD();
     this.inventoryScreen = new InventoryScreen();
+    this.questTracker = new QuestTracker(this.questLog);
+    this.dialogueBox = new DialogueBox(this.dialogueSystem);
     this.buildMenuButton();
 
     this.wireEvents();
     eventBus.emit('save:loaded', {});
+    this.dialogueSystem.start(INTRO_DIALOGUE);
 
     window.addEventListener('resize', this.onResize);
 
@@ -196,6 +211,7 @@ export class GameManager {
     } else {
       this.knight.handleInput(dt, this.input, this.cameraRig.yaw);
     }
+    this.knight.updateAnimationMixer(dt);
 
     const mountedDragon = this.mountedDragon();
     if (mountedDragon) this.updateMountedDragon(mountedDragon);
@@ -264,11 +280,13 @@ export class GameManager {
     if (!this.input.consumeAction('mountToggle')) return;
     this.knight.mount(candidate.id);
     candidate.riddenBy = this.knight.id;
+    this.cameraRig.mounted = true;
   }
 
   private dismountKnight(): void {
     const dragon = this.mountedDragon();
     this.knight.dismount();
+    this.cameraRig.mounted = false;
     if (!dragon) return;
     dragon.riddenBy = null;
     const landing = dragon.object3D.position.clone().add(new THREE.Vector3(1.6, 0, 0));
@@ -328,6 +346,7 @@ export class GameManager {
       maxStamina: this.knight.stamina.max,
       bond,
       prompt,
+      riding: this.knight.isMounted ? (this.mountedDragon()?.displayName ?? null) : null,
       minimapEntities: [
         { x: this.knight.object3D.position.x, z: this.knight.object3D.position.z, kind: 'player' },
         ...this.dragons

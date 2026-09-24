@@ -11,8 +11,9 @@ just Vite + TypeScript + Three.js + Rapier physics, installable as a PWA.
 - **TypeScript** (strict)
 - **@dimforge/rapier3d-compat** — physics (WASM, base64-inlined by the
   compat build, so it works offline with no extra fetch)
-- **glTF** — models/animations, with a placeholder-mesh fallback so the
-  game runs today and real assets drop in later with zero code changes
+- **glTF** — models/animations. The knight is a real rigged CC0 asset
+  (see "What's built"); the dragon is still a placeholder mesh, with the
+  same drop-in-and-it-just-works path the knight took
 - **vite-plugin-pwa** — installable, offline-capable PWA
 
 ## Running it
@@ -104,18 +105,44 @@ which one is in use.
   (`scripts/gen-icons.mjs`), service worker via `vite-plugin-pwa`
   (`generateSW`, `registerType: autoUpdate`), works offline after first
   load, installable to a phone home screen.
+- **A real rigged knight**: `public/assets/models/knight.glb` is KayKit's
+  CC0 Adventurers-pack Knight (75 animation clips, one skeleton - see
+  `public/assets/CREDITS.md`). `Knight.ts` drives a real animation state
+  graph off it (idle/run/the 3 combo attacks/dodge/block/hit/death),
+  crossfading between clips and speeding up the ~1s stock attack/dodge
+  clips to match the game's much snappier combat timing rather than
+  letting them run long and get cut off. The dragon is still the
+  procedural placeholder - see "What's stubbed".
+- **Quest tracker + dialogue box**: a small always-on HUD panel
+  (`src/ui/QuestTracker.ts`) tracks the active `QuestLog` quest live, and
+  a tap-to-advance dialogue box (`src/ui/DialogueBox.ts`) renders
+  `DialogueSystem` lines - both just thin UI over the existing systems,
+  not new game logic. A short intro dialogue plays on boot to exercise it.
+- **Richer inventory screen**: the skill tree renders as a radial "wheel"
+  per branch (nodes arranged in a circle around a hub, prerequisite lines
+  colored by unlocked state) instead of a flat list, plus a paper-doll
+  equipment row and pointer-based drag-to-equip for gear cards (tap still
+  works too) - see `src/ui/InventoryScreen.ts`.
+- **Mounted riding has its own camera framing**: `CameraRig.mounted`
+  pulls the camera back and up while riding, and the HUD shows a
+  "Riding: `<name>`" badge - the ride mechanics themselves (drive the
+  dragon from input, dismount placement, settle delay) shipped in the
+  previous round; this is the visual polish pass on top.
 
 ## What's stubbed / simplified
 
-- **Placeholder art everywhere**: knight and dragon are procedural
-  low-poly THREE meshes (capsule + primitives), not real models. Drop a
-  matching `.glb` into `/assets/models` (see `assets/README.md`) and
-  `AssetLoader` picks it up automatically — no code changes.
-- **No real animation system yet**: `AssetLoader` returns any
-  `AnimationClip[]` a dropped-in glTF carries, but nothing currently
-  builds an `AnimationMixer`/state graph from them - dragon attack
-  telegraphs are an eye-color/intensity flash rather than a wind-up
-  animation.
+- **The dragon is still a placeholder**: no rigged CC0 dragon (or
+  wyvern/drake stand-in) with a usable animation set was reachable from
+  this dev environment - Quaternius, Kenney, Gobkit, Sketchfab, and
+  itch.io are all blocked by this sandbox's network egress policy, and
+  no GitHub-hosted official CC0 dragon pack turned up in a fairly
+  thorough search (the KayKit org that the knight came from has no
+  monster/creature pack at all). The knight proves the pipeline works
+  end-to-end; the dragon just needs an asset. Fastest path: you download
+  a CC0-licensed rigged dragon/wyvern yourself (Quaternius's "Animated
+  Monster Pack" or similar) and drop it in as `public/assets/models/dragon.glb`
+  - `AssetLoader`/`Dragon.ts` will pick it up with no code changes, same
+  as the knight did. See `public/assets/CREDITS.md`.
 - **Gear's `armor` stat** is rolled but not applied yet (no incoming-damage
   mitigation system beyond Block exists).
 - **Mounted riding is ground-only** — no flight, no stamina cost, no
@@ -129,28 +156,29 @@ which one is in use.
 - **Taming a zone's dragon doesn't persist that specific dragon as
   "already tamed"** across reloads — the zone always spawns its feral
   dragons fresh; only the `PlayerStable` record persists.
-- **QuestLog/DialogueSystem** are minimal (a status map and a line
-  queue) with no UI rendering wired up yet — HUD doesn't show quest
-  progress or dialogue text on screen.
 - **Single zone, no zone transitions.**
+- **Knight's animation set is a subset of the pack**: only the 9 clips
+  the state graph actually needs are wired up (see `ANIMATION_CLIP_NAMES`
+  in `Knight.ts`); the other 66 clips in `knight.glb` (ranged/spellcasting/
+  sitting/jumping/dual-wield/etc., meant for the pack's other classes)
+  are unused dead weight in the file.
 
 ## Suggested follow-up prompts
 
-1. **"Wire real CC0 assets"** — source a rigged knight + dragon (Mixamo /
-   Quaternius / Kenney), drop them into `/assets/models` +
-   `/assets/animations` per `assets/README.md`, and build the
-   `AnimationMixer` state graph (idle/run/attack/dodge/hit/death, plus
-   dragon attack wind-ups) that `AssetLoader` is already structured to
-   support.
+1. **"Source and wire a dragon asset"** — once you've got a CC0 rigged
+   dragon/wyvern `.glb` (see "what's stubbed" above for why this
+   session couldn't fetch one itself), drop it into
+   `public/assets/models/dragon.glb` and build `Dragon.ts` an animation
+   state graph the same way `Knight.ts` has one now (idle/fly-or-walk/the
+   3 attack patterns/hit/death), replacing the eye-flash telegraph with
+   real wind-up animations.
 2. **"Add more active abilities and turn the Ability Wheel into a real
    radial menu"** — give Blade/Ward/Bond a couple of tap-to-activate
    abilities beyond Riposte, and build the actual wheel UI to pick
    between them.
-3. **"Build the skill tree / inventory UI further and add dragon
-   flight"** — richer `InventoryScreen` visuals (drag-to-equip, stat
-   previews), a proper flight/altitude control scheme for mounted
-   dragons instead of ground-only riding, and quest/dialogue UI panels
-   backed by the existing `QuestLog`/`DialogueSystem`.
+3. **"Add dragon flight"** — a proper flight/altitude control scheme for
+   mounted dragons instead of ground-only riding (probably wants a
+   dedicated up/down input and a different camera mode).
 4. **"Add more zones and a zone transition system"** — a second zone
    definition, a loading/transition flow in `ZoneLoader`, and travel
    points or a portal to move between them.

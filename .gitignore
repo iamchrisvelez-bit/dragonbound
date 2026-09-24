@@ -6,13 +6,18 @@ dev-dist/
 *.local
 
 # Real art assets are dropped in locally / fetched separately; keep the
-# repo small and let AssetLoader's placeholder fallback cover their absence.
-assets/models/*
-!assets/models/.gitkeep
-assets/animations/*
-!assets/animations/.gitkeep
-assets/textures/*
-!assets/textures/.gitkeep
+# repo small and let AssetLoader's placeholder fallback cover their absence,
+# except for specific verified-CC0 assets explicitly allow-listed below.
+# Lives under public/ (not a bare top-level /assets) so Vite's production
+# build actually copies it into dist/ - see vite.config.ts's build.assetsDir
+# comment for why that doesn't collide with Vite's own bundle output.
+public/assets/models/*
+!public/assets/models/.gitkeep
+!public/assets/models/knight.glb
+public/assets/animations/*
+!public/assets/animations/.gitkeep
+public/assets/textures/*
+!public/assets/textures/.gitkeep
 
 *.log
 .vscode/*

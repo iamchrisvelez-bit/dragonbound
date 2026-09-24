@@ -5,6 +5,9 @@ const PIVOT_HEIGHT = 1.4;
 const DEFAULT_DISTANCE = 6;
 const MIN_DISTANCE = 1.6;
 const MAX_DISTANCE = 7.5;
+/** Pulled back and a bit higher while riding a dragon - it's a bigger subject and the point is to see more of the ride. */
+const MOUNTED_PIVOT_HEIGHT = 2.3;
+const MOUNTED_DISTANCE = 9;
 const MIN_PITCH = 0.12;
 const MAX_PITCH = 1.15;
 const LOOK_SENSITIVITY_X = 0.0045;
@@ -23,6 +26,8 @@ export class CameraRig {
   pitch = 0.34;
   distance = DEFAULT_DISTANCE;
   lockOnTarget: THREE.Object3D | null = null;
+  /** Set by GameManager on mount/dismount - swaps in a pulled-back, higher framing. */
+  mounted = false;
 
   private raycaster = new THREE.Raycaster();
   private currentCamPos: THREE.Vector3 | null = null;
@@ -45,7 +50,8 @@ export class CameraRig {
   }
 
   update(dt: number, targetPosition: THREE.Vector3, lookDelta: { x: number; y: number }, collidables: THREE.Object3D[]): void {
-    const pivot = targetPosition.clone().add(new THREE.Vector3(0, PIVOT_HEIGHT, 0));
+    const pivotHeight = this.mounted ? MOUNTED_PIVOT_HEIGHT : PIVOT_HEIGHT;
+    const pivot = targetPosition.clone().add(new THREE.Vector3(0, pivotHeight, 0));
 
     if (this.lockOnTarget && !this.lockOnTarget.parent) {
       // target was removed from the scene (e.g. despawned) - drop the lock
@@ -68,13 +74,14 @@ export class CameraRig {
       Math.cos(this.yaw) * Math.cos(this.pitch),
     );
 
-    let travelDistance = this.distance;
+    const baseDistance = this.mounted ? MOUNTED_DISTANCE : this.distance;
+    let travelDistance = baseDistance;
     if (collidables.length > 0) {
       this.raycaster.set(pivot, offsetDir);
-      this.raycaster.far = this.distance;
+      this.raycaster.far = baseDistance;
       const hits = this.raycaster.intersectObjects(collidables, false);
       if (hits.length > 0) {
-        travelDistance = clamp(hits[0].distance - 0.35, MIN_DISTANCE, this.distance);
+        travelDistance = clamp(hits[0].distance - 0.35, MIN_DISTANCE, baseDistance);
       }
     }
 

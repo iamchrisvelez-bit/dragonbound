@@ -18,6 +18,12 @@ export default defineConfig({
     // few hundred KB on its own, so a single-chunk PWA bundle for a game
     // this size is expected to land above Vite's default 500kB heads-up.
     chunkSizeWarningLimit: 3000,
+    // Vite's default build.assetsDir ('assets') would collide with
+    // public/assets (our /assets/models/*.glb drop-in convention, copied
+    // verbatim into dist/assets by the public-dir copy) - move the
+    // bundler's own hashed JS/CSS chunks out of the way instead of
+    // renaming the public convention everywhere it's documented.
+    assetsDir: 'app',
   },
   plugins: [
     VitePWA({
