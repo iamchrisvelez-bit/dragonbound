@@ -11,9 +11,9 @@ just Vite + TypeScript + Three.js + Rapier physics, installable as a PWA.
 - **TypeScript** (strict)
 - **@dimforge/rapier3d-compat** — physics (WASM, base64-inlined by the
   compat build, so it works offline with no extra fetch)
-- **glTF** — models/animations. The knight is a real rigged CC0 asset
-  (see "What's built"); the dragon is still a placeholder mesh, with the
-  same drop-in-and-it-just-works path the knight took
+- **glTF** — models/animations. Both the knight and dragon are real
+  rigged assets now (see "What's built"), driven by per-entity
+  `AnimationMixer` state graphs
 - **vite-plugin-pwa** — installable, offline-capable PWA
 
 ## Running it
@@ -111,8 +111,19 @@ which one is in use.
   graph off it (idle/run/the 3 combo attacks/dodge/block/hit/death),
   crossfading between clips and speeding up the ~1s stock attack/dodge
   clips to match the game's much snappier combat timing rather than
-  letting them run long and get cut off. The dragon is still the
-  procedural placeholder - see "What's stubbed".
+  letting them run long and get cut off.
+- **A real rigged dragon**: `public/assets/models/dragon.glb` (provided
+  directly by the project owner - see `public/assets/CREDITS.md` for the
+  still-unconfirmed license/source caveat) replaces the procedural
+  placeholder. It ships only 4 clips (Idle, Walk, Flap, Roar), so
+  `Dragon.ts`'s state graph reuses Roar as the attack windup telegraph
+  and Flap as the active-attack pose (sped up per-attack via the same
+  `timeScale` trick `Knight.ts` uses), alongside real Idle/Walk for
+  everything else - crossfaded the same way as the knight. The model's
+  own geometry is a genuinely tiny "whelp" size, so it's rendered at a
+  fixed 2.2x visual-only scale (`DRAGON_VISUAL_SCALE` in `Dragon.ts`) to
+  stay legible at normal third-person combat distance; the Rapier
+  collider and hurtbox radius are untouched by that scale-up.
 - **Quest tracker + dialogue box**: a small always-on HUD panel
   (`src/ui/QuestTracker.ts`) tracks the active `QuestLog` quest live, and
   a tap-to-advance dialogue box (`src/ui/DialogueBox.ts`) renders
@@ -131,18 +142,18 @@ which one is in use.
 
 ## What's stubbed / simplified
 
-- **The dragon is still a placeholder**: no rigged CC0 dragon (or
-  wyvern/drake stand-in) with a usable animation set was reachable from
-  this dev environment - Quaternius, Kenney, Gobkit, Sketchfab, and
-  itch.io are all blocked by this sandbox's network egress policy, and
-  no GitHub-hosted official CC0 dragon pack turned up in a fairly
-  thorough search (the KayKit org that the knight came from has no
-  monster/creature pack at all). The knight proves the pipeline works
-  end-to-end; the dragon just needs an asset. Fastest path: you download
-  a CC0-licensed rigged dragon/wyvern yourself (Quaternius's "Animated
-  Monster Pack" or similar) and drop it in as `public/assets/models/dragon.glb`
-  - `AssetLoader`/`Dragon.ts` will pick it up with no code changes, same
-  as the knight did. See `public/assets/CREDITS.md`.
+- **The dragon asset's license/source isn't confirmed**: it was provided
+  directly by the project owner rather than sourced from a verified CC0
+  pack (Quaternius, Kenney, Gobkit, Sketchfab, and itch.io were all
+  blocked by this sandbox's network egress policy, and no GitHub-hosted
+  official CC0 dragon pack turned up in a fairly thorough search - the
+  KayKit org that the knight came from has no monster/creature pack at
+  all). Confirm licensing with the project owner before redistributing
+  this repository publicly. See `public/assets/CREDITS.md`.
+- **The dragon has no dedicated attack/hit/death animation clips** - only
+  Idle/Walk/Flap/Roar exist in the file, so the combat state graph reuses
+  Roar and Flap for those beats (see `Dragon.ts`). A richer dragon rig
+  with real attack/hit/death clips would read better.
 - **Gear's `armor` stat** is rolled but not applied yet (no incoming-damage
   mitigation system beyond Block exists).
 - **Mounted riding is ground-only** — no flight, no stamina cost, no
@@ -165,13 +176,13 @@ which one is in use.
 
 ## Suggested follow-up prompts
 
-1. **"Source and wire a dragon asset"** — once you've got a CC0 rigged
-   dragon/wyvern `.glb` (see "what's stubbed" above for why this
-   session couldn't fetch one itself), drop it into
-   `public/assets/models/dragon.glb` and build `Dragon.ts` an animation
-   state graph the same way `Knight.ts` has one now (idle/fly-or-walk/the
-   3 attack patterns/hit/death), replacing the eye-flash telegraph with
-   real wind-up animations.
+1. **"Source a fuller dragon animation set (or confirm/replace the
+   current asset's license)"** — the current `dragon.glb` covers
+   idle/walk/attack-telegraph/active-attack reasonably well but has no
+   dedicated hit/death clip and an unconfirmed license (see "what's
+   stubbed"); either get licensing confirmed from the project owner, or
+   swap in a fuller-featured CC0 rigged dragon/wyvern and extend
+   `Dragon.ts`'s state graph to match.
 2. **"Add more active abilities and turn the Ability Wheel into a real
    radial menu"** — give Blade/Ward/Bond a couple of tap-to-activate
    abilities beyond Riposte, and build the actual wheel UI to pick

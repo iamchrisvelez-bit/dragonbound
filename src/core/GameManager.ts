@@ -221,6 +221,7 @@ export class GameManager {
       if (dragon === mountedDragon) continue; // driven directly above, not by its own AI
       dragon.updateAI(dt, this.knight.object3D.position, this.aggroManager.isAggro(dragon.id));
     }
+    for (const dragon of this.dragons) dragon.updateAnimationMixer(dt);
     this.tamingController.update(dt, this.input, this.knight, this.dragons);
 
     this.world.step();

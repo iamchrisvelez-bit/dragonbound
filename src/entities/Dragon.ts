@@ -14,6 +14,23 @@ const CHASE_STOP_DISTANCE = 1.4;
 const DEFAULT_EYE_COLOR = 0xd4a853;
 const DEFAULT_EYE_INTENSITY = 0.6;
 
+// Animation state graph: clip names from the uploaded dragon_whelp.glb (see
+// public/assets/CREDITS.md). Only 4 clips exist - no dedicated attack/hit/
+// death - so Roar stands in as the windup telegraph and Flap as the
+// active-attack pose, both sped up to fit each pattern's actual timing
+// (same trick Knight.ts uses for its combo/dodge clips). Placeholder mesh
+// has no skeleton, so playAnimation() no-ops gracefully until the real
+// model (and its actions) has loaded.
+const ANIM_IDLE = 'Idle';
+const ANIM_WALK = 'Walk';
+const ANIM_FLAP = 'Flap';
+const ANIM_ROAR = 'Roar';
+const ANIMATION_CLIP_NAMES = [ANIM_IDLE, ANIM_WALK, ANIM_FLAP, ANIM_ROAR];
+const ONE_SHOT_ANIMATIONS = new Set([ANIM_FLAP, ANIM_ROAR]);
+const ANIMATION_CROSSFADE = 0.15;
+/** Visual-only scale-up so the (deliberately small, whelp-sized) model reads clearly in third-person combat. */
+const DRAGON_VISUAL_SCALE = 2.2;
+
 type DragonPhase = 'idle' | 'chase' | 'windup' | 'active' | 'recovery';
 
 export class Dragon extends Entity {
@@ -41,6 +58,11 @@ export class Dragon extends Entity {
   private currentAttack: DragonAttackDef | null = null;
   private phaseTimer = 0;
   private cooldowns = new Map<string, number>();
+  private isMovingExternally = false;
+
+  private mixer: THREE.AnimationMixer | null = null;
+  private animActions = new Map<string, THREE.AnimationAction>();
+  private currentAnimName: string | null = null;
 
   constructor(
     world: RAPIER.World,
@@ -172,6 +194,61 @@ export class Dragon extends Entity {
     this.rigidBody?.setLinvel({ x: velocity.x, y: 0, z: velocity.z }, true);
     this.facingYaw = facingYaw;
     this.object3D.quaternion.setFromAxisAngle(UP, facingYaw);
+    this.isMovingExternally = velocity.lengthSq() > 0.0001;
+  }
+
+  /** Advances the animation mixer and picks the right clip for the current
+   * state. Called every frame by GameManager for every dragon, regardless
+   * of feral/tamed/ridden state, so the mixer never stalls. No-ops until
+   * the real model (and its actions) has finished loading. */
+  updateAnimationMixer(dt: number): void {
+    if (this.riddenBy) {
+      this.playAnimation(this.isMovingExternally ? ANIM_WALK : ANIM_IDLE);
+    } else if (this.ai.state !== 'feral') {
+      this.playAnimation(ANIM_IDLE);
+    } else {
+      switch (this.phase) {
+        case 'idle':
+        case 'recovery':
+          this.playAnimation(ANIM_IDLE);
+          break;
+        case 'chase':
+          this.playAnimation(ANIM_WALK);
+          break;
+        case 'windup':
+          this.playAnimation(ANIM_ROAR, this.currentAttack?.windup);
+          break;
+        case 'active':
+          this.playAnimation(ANIM_FLAP, this.currentAttack?.active);
+          break;
+      }
+    }
+
+    this.mixer?.update(dt);
+  }
+
+  /** Crossfades to `name`, scaling one-shot clips to finish in `targetDuration`
+   * seconds (Roar/Flap run 0.6-1.6s natively; our attack timing is much
+   * snappier, so they play sped-up rather than getting cut off). No-op if
+   * that clip isn't loaded yet or is already playing. */
+  private playAnimation(name: string, targetDuration?: number): void {
+    if (this.currentAnimName === name) return;
+    const action = this.animActions.get(name);
+    if (!action) return;
+
+    const previousName = this.currentAnimName;
+    this.currentAnimName = name;
+
+    const oneShot = ONE_SHOT_ANIMATIONS.has(name);
+    const clipDuration = action.getClip().duration;
+    action.reset();
+    action.setLoop(oneShot ? THREE.LoopOnce : THREE.LoopRepeat, oneShot ? 1 : Infinity);
+    action.clampWhenFinished = oneShot;
+    action.timeScale = targetDuration && clipDuration > 0 ? clipDuration / targetDuration : 1;
+    action.fadeIn(ANIMATION_CROSSFADE);
+    action.play();
+
+    if (previousName) this.animActions.get(previousName)?.fadeOut(ANIMATION_CROSSFADE);
   }
 
   override takeDamage(amount: number, sourceId?: string): void {
@@ -298,8 +375,22 @@ export class Dragon extends Entity {
     if (loaded.animations.length === 0) return;
     this.object3D.remove(this.visual);
     this.visual = loaded.scene;
+    // The whelp model's own geometry is ~0.73 units tall (a young dragon, by
+    // design - matches this zone's "Wyrmling" naming) - too small to read
+    // clearly at normal third-person combat distance, so it's scaled up for
+    // visibility. This only affects the rendered mesh: the Rapier collider
+    // and the CombatSystem hurtbox radius above are untouched, so hit
+    // detection isn't affected by this cosmetic resize.
+    this.visual.scale.setScalar(DRAGON_VISUAL_SCALE);
     this.eyeMaterials = []; // real assets telegraph via their own animations, not the placeholder's eye-flash hack
     this.object3D.add(this.visual);
+
+    this.mixer = new THREE.AnimationMixer(this.visual);
+    for (const name of ANIMATION_CLIP_NAMES) {
+      const clip = THREE.AnimationClip.findByName(loaded.animations, name);
+      if (clip) this.animActions.set(name, this.mixer.clipAction(clip));
+      else console.warn(`[Dragon] animation clip "${name}" not found in dragon.glb`);
+    }
   }
 }
 

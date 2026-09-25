@@ -20,6 +20,17 @@
 
 ## `models/dragon.glb`
 
-Not sourced yet - see the session notes / README for why (no rigged CC0
-dragon was reachable from this environment; the dragon still renders as
-the procedural placeholder mesh in `src/entities/Dragon.ts`).
+Provided directly by the project owner (this environment's network
+restrictions blocked every asset host that might have had one - see the
+README's earlier history for that search). Generator tag in the file
+reads `build_dragon_whelp.py`, suggesting a procedurally-built model
+rather than a named third-party pack.
+
+- License/source: **not yet confirmed** - ask the project owner before
+  redistributing this repository publicly or treating the asset as
+  cleared for arbitrary reuse.
+- Contains 1 skinned mesh, 1 skin, 4 animation clips (Idle, Walk, Flap,
+  Roar) - see the animation mapping in `src/entities/Dragon.ts`. There's
+  no dedicated attack/hit/death clip; the state graph reuses Roar as an
+  attack telegraph and Flap as the active-attack pose (see that file's
+  comments for the exact mapping).

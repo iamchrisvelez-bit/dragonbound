@@ -15,7 +15,7 @@ also wants `dist/assets/`.
 public/assets/
   models/
     knight.glb      # player character, rigged + skinned - already present (see CREDITS.md)
-    dragon.glb      # dragon enemy/mount, ideally rigged + skinned - not sourced yet
+    dragon.glb      # dragon enemy/mount, rigged + skinned - already present (see CREDITS.md)
   animations/
     knight-idle.glb # optional: separate animation-only clips for retargeting
     knight-run.glb
@@ -37,9 +37,11 @@ Notes:
   the clips array from that file.
 - Nothing under here is committed by default (see root `.gitignore`)
   except this README, `CREDITS.md`, a `.gitkeep` per folder, and any
-  specific file explicitly allow-listed once it's been verified CC0 (like
-  `models/knight.glb` - see `CREDITS.md` for its source and license) -
-  so the repo stays small until real, properly-licensed art is dropped in.
+  specific file explicitly allow-listed (like `models/knight.glb`, a
+  verified CC0 asset, and `models/dragon.glb`, provided directly by the
+  project owner with its license not yet confirmed - see `CREDITS.md`
+  for both) - so the repo stays small until real, properly-licensed art
+  is dropped in.
 - Recommended CC0 sources: KayKit (kaylousberg.itch.io, also mirrored on
   GitHub under the `KayKit-Game-Assets` org - reachable even from
   network-restricted environments where itch.io/Quaternius/Kenney
