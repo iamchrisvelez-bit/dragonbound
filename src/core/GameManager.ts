@@ -25,6 +25,7 @@ import { FloatingText } from '../ui/FloatingText';
 import { DeathScreen } from '../ui/DeathScreen';
 import { DamageVignette } from '../ui/DamageVignette';
 import { StartScreen } from '../ui/StartScreen';
+import { sfx } from './SfxManager';
 import { InventoryScreen } from '../ui/InventoryScreen';
 import { QuestTracker } from '../ui/QuestTracker';
 import { DialogueBox } from '../ui/DialogueBox';
@@ -210,7 +211,10 @@ export class GameManager {
       font-size: 11px;
       font-family: system-ui, sans-serif;
     `;
-    btn.addEventListener('click', () => this.inventoryScreen.toggle());
+    btn.addEventListener('click', () => {
+      sfx.play('ui-tap');
+      this.inventoryScreen.toggle();
+    });
     document.body.appendChild(btn);
 
     window.addEventListener('keydown', (e) => {
@@ -279,6 +283,7 @@ export class GameManager {
       const pos = dragon.object3D.position.clone().add(new THREE.Vector3(0, dragon.barAnchorHeight, 0));
       this.floatingText.spawn(pos, `-${Math.round(amount)}`, 'damage');
       this.cameraRig.addShake(0.12);
+      sfx.play('hit-dragon');
     });
 
     eventBus.on('player:damaged', ({ amount }) => {
@@ -286,6 +291,7 @@ export class GameManager {
       this.floatingText.spawn(pos, `-${Math.round(amount)}`, 'player-damage');
       this.cameraRig.addShake(0.4);
       this.damageVignette.flash();
+      sfx.play('hit-player');
     });
 
     eventBus.on('taming:success', ({ dragonId }) => {
@@ -293,16 +299,19 @@ export class GameManager {
       progressionManager.grantSkillPoints(1);
       progressionManager.addGear(rollGear('tamers-gloves', 'uncommon'));
       void this.save();
+      sfx.play('success');
       console.info(`[Dragonbound] Tamed dragon ${dragonId}! +1 skill point, Tamer's Gloves added.`);
     });
 
     eventBus.on('crystal:evaporated', ({ dragonName }) => {
       this.questLog.updateStatus('open-first-crystal', 'complete');
+      sfx.play('success');
       console.info(`[Dragonbound] Crystal evaporated - ${dragonName} joins the stable at full strength.`);
     });
 
     eventBus.on('crystal:fractured', ({ dragonName }) => {
       this.questLog.updateStatus('open-first-crystal', 'complete');
+      sfx.play('success', { rate: 0.85, volume: 0.8 });
       console.info(`[Dragonbound] Crystal fractured - ${dragonName} joins the stable, diminished.`);
     });
   }

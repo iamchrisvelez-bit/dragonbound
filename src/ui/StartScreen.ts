@@ -1,3 +1,5 @@
+import { sfx } from '../core/SfxManager';
+
 let stylesInjected = false;
 
 /**
@@ -38,6 +40,7 @@ export class StartScreen {
     this.root.appendChild(hint);
 
     const begin = () => {
+      sfx.play('ui-tap');
       this.root.classList.add('db-start-fade-out');
       window.setTimeout(() => this.root.remove(), 500);
       onBegin();

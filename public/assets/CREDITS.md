@@ -123,3 +123,49 @@ monsters in that pack: Bat, Dragon, Skeleton, Slime).
   the first time each track actually plays, so the ~4MB these three add
   doesn't inflate the up-front "installing this PWA" download for
   something that's ambience, not required to play the game.
+
+## `audio/sfx/*`
+
+**Kenney's "RPG Audio", "Impact Sounds", and "UI Audio" packs**, by Kenney
+Vleugels ([kenney.nl](https://kenney.nl)).
+
+- License: [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/)
+  — Public Domain Dedication, Kenney's standard licensing for every asset
+  pack he publishes. Free for personal, educational, and commercial use,
+  no attribution required (credited here anyway).
+- **Sourcing note**: kenney.nl itself is blocked by this sandbox's network
+  egress policy (same restriction as the other assets above), so these
+  were retrieved from Godot-Asset-Library ports of the original packs -
+  each repo carries its own CC0 1.0 Universal license file (verified
+  before use, saved verbatim here for provenance), by
+  [Boyquotes/kenney-rpg-audio-for-godot](https://github.com/Boyquotes/kenney-rpg-audio-for-godot)
+  ([`kenney-rpg-audio-License.txt`](kenney-rpg-audio-License.txt)),
+  [Boyquotes/kenney-impact-sounds-for-godot](https://github.com/Boyquotes/kenney-impact-sounds-for-godot)
+  ([`kenney-impact-sounds-License.txt`](kenney-impact-sounds-License.txt)),
+  and [Calinou/kenney-ui-audio](https://github.com/Calinou/kenney-ui-audio)
+  ([`kenney-ui-audio-License.txt`](kenney-ui-audio-License.txt) - Kenney's
+  own standard pack license file verbatim, also pointing back at the
+  original [kenney.nl/assets/ui-audio](https://kenney.nl/assets/ui-audio)
+  listing).
+- File mapping (renamed from each pack's original filename for clarity in
+  this project - see `src/core/SfxManager.ts`):
+  - `attack-swing-1.ogg` / `attack-swing-2.ogg` ← RPG Audio's
+    `knife_slice.ogg` / `knife_slice_2.ogg` (Knight.ts alternates the two
+    by combo index for a little variety)
+  - `hit-dragon.ogg` ← Impact Sounds' `impact_metal_medium_002.ogg`
+  - `hit-player.ogg` ← Impact Sounds' `impact_plate_heavy_002.ogg`
+  - `dodge.ogg` ← Impact Sounds' `impact_soft_medium_000.ogg`
+  - `dragon-windup.ogg` ← Impact Sounds' `impact_bell_heavy_002.ogg` - an
+    audio companion to a dragon's eye-glow attack telegraph, useful on a
+    phone screen where the player's thumb/attention isn't always on the
+    dragon's face
+  - `success.ogg` ← RPG Audio's `handle_coins.ogg` (taming success,
+    crystal evaporated/fractured)
+  - `ui-tap.wav` ← UI Audio's `click1.wav` (non-combat UI only - the
+    Start/Menu buttons, dialogue advance, quest tracker toggle - kept
+    separate from the five combat action buttons, which already get
+    their own distinct gameplay sounds and would otherwise double up)
+- Eager-precached (`vite.config.ts`'s `globPatterns`), unlike the music
+  tracks above - these are a few KB each (~90KB total for all eight) and
+  needed the instant combat starts, so unlike music's lazy
+  `runtimeCaching`, there's no size trade-off to justify deferring them.

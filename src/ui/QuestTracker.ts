@@ -1,5 +1,6 @@
 import type { QuestLog, Quest } from '../world/QuestLog';
 import { eventBus } from '../core/EventBus';
+import { sfx } from '../core/SfxManager';
 
 let stylesInjected = false;
 
@@ -31,6 +32,7 @@ export class QuestTracker {
     this.toggle = document.createElement('button');
     this.toggle.className = 'db-quest-header';
     this.toggle.addEventListener('click', () => {
+      sfx.play('ui-tap', { volume: 0.5 });
       this.expanded = !this.expanded;
       this.refresh();
     });

@@ -25,6 +25,16 @@ public/assets/audio/music/*
 !public/assets/audio/music/theme-1.ogg
 !public/assets/audio/music/theme-2.ogg
 !public/assets/audio/music/theme-6.ogg
+public/assets/audio/sfx/*
+!public/assets/audio/sfx/.gitkeep
+!public/assets/audio/sfx/attack-swing-1.ogg
+!public/assets/audio/sfx/attack-swing-2.ogg
+!public/assets/audio/sfx/hit-dragon.ogg
+!public/assets/audio/sfx/hit-player.ogg
+!public/assets/audio/sfx/dodge.ogg
+!public/assets/audio/sfx/dragon-windup.ogg
+!public/assets/audio/sfx/success.ogg
+!public/assets/audio/sfx/ui-tap.wav
 
 *.log
 .vscode/*

@@ -9,6 +9,7 @@ import { ComboSystem } from '../combat/ComboSystem';
 import { combatSystem } from '../combat/CombatSystem';
 import { lerpAngle } from '../core/mathUtils';
 import { progressionManager } from '../progression/ProgressionManager';
+import { sfx } from '../core/SfxManager';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const DODGE_STAMINA_COST = 18;
@@ -185,6 +186,7 @@ export class Knight extends Entity {
       this.iFrameTimer = DODGE_DURATION * (this.abilities.has('evasive-roll') ? EVASIVE_ROLL_IFRAME_MULTIPLIER : 1);
       this.isDodging = true;
       this.attackRecoveryTimer = 0;
+      sfx.play('dodge', { rate: 1.15 });
     }
 
     // Ability Wheel: currently activates Riposte's parry stance if unlocked.
@@ -203,6 +205,7 @@ export class Knight extends Entity {
           duration: attack.activeDuration + attack.recoveryDuration,
         };
         eventBus.emit('combat:attack-started', { attackerId: this.id, comboIndex: this.combo.comboIndex });
+        sfx.play(this.combo.comboIndex % 2 === 0 ? 'attack-swing-1' : 'attack-swing-2');
         const damage = Math.round((attack.damage + this.attackDamageFlat) * this.attackDamageMultiplier);
         combatSystem.spawnHitbox({
           ownerId: this.id,

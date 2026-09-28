@@ -1,5 +1,6 @@
 import type { DialogueSystem, DialogueLine } from '../world/DialogueSystem';
 import { eventBus } from '../core/EventBus';
+import { sfx } from '../core/SfxManager';
 
 let stylesInjected = false;
 
@@ -44,6 +45,7 @@ export class DialogueBox {
   }
 
   private advance(): void {
+    sfx.play('ui-tap', { volume: 0.6 });
     // dialogueSystem.advance() emits 'dialogue:line' (re-rendering via the
     // listener above) when there's a next line; when the queue is empty it
     // emits nothing, so isActive is what tells us to hide.

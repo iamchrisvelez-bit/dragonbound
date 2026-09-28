@@ -7,6 +7,7 @@ import { combatSystem } from '../combat/CombatSystem';
 import { DragonAI } from '../taming/DragonAI';
 import { BondMeter } from '../taming/BondMeter';
 import { MAX_ENGAGE_RANGE, eligibleAttacks, type DragonAttackDef } from '../combat/DragonAttacks';
+import { sfx } from '../core/SfxManager';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const APPROACH_SPEED = 2.6;
@@ -397,6 +398,9 @@ export class Dragon extends Entity {
     this.phase = 'windup';
     this.phaseTimer = pattern.windup;
     this.setTelegraphColor(pattern.telegraphColor);
+    // Audio companion to the eye-glow telegraph - useful on a phone screen
+    // where the player's thumb/attention isn't always on this dragon's face.
+    sfx.play('dragon-windup', { volume: 0.55 });
   }
 
   private beginActive(dirToPlayer: THREE.Vector3, playerPosition: THREE.Vector3): void {

@@ -47,7 +47,11 @@ export default defineConfig({
         type: 'module',
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,json,glb,gltf,png,jpg,webp,ico,wasm}'],
+        // SFX are tiny (a few KB each) and needed the instant combat starts,
+        // so they're eager-precached like models/animations - unlike music
+        // (see runtimeCaching below), a first attack shouldn't have to wait
+        // on a network fetch for its swing sound.
+        globPatterns: ['**/*.{js,css,html,json,glb,gltf,png,jpg,webp,ico,wasm}', 'assets/audio/sfx/*.{ogg,wav}'],
         // Rapier's wasm binary is embedded as base64 in the compat build,
         // but keep a generous cache size limit in case real model/texture
         // assets are dropped into /assets later.

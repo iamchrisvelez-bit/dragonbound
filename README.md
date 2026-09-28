@@ -304,6 +304,13 @@ not a wide desktop window shrunk down:
   audio before a user gesture), and is toggleable via the "Music: On/Off"
   HUD button. Runtime-cached rather than eagerly precached, so it doesn't
   add to the PWA's up-front install download.
+- **Combat/UI sound effects**: `src/core/SfxManager.ts` fires one-shot
+  CC0 sounds (see `public/assets/CREDITS.md`) for attack swings, landed
+  hits (distinct for player-on-dragon vs. dragon-on-player), dodges, a
+  dragon's attack-windup warning, taming/crystal success, and non-combat
+  UI taps. Eagerly precached (a few KB each) rather than runtime-cached
+  like music, since combat shouldn't wait on a network fetch for its
+  first swing sound.
 
 ## What's stubbed / simplified
 
