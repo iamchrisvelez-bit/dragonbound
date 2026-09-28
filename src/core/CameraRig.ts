@@ -2,9 +2,12 @@ import * as THREE from 'three';
 import { clamp, lerpAngle } from './mathUtils';
 
 const PIVOT_HEIGHT = 1.4;
-const DEFAULT_DISTANCE = 6;
+/** Pulled back and pitched down into a 3/4 action-RPG framing (was a tight
+ * 6-unit over-the-shoulder shot at an 19.5deg default pitch) - shows more of
+ * the surrounding fight instead of mostly sky/close-up back-of-head. */
+const DEFAULT_DISTANCE = 9.5;
 const MIN_DISTANCE = 1.6;
-const MAX_DISTANCE = 7.5;
+const MAX_DISTANCE = 12;
 /**
  * Vertical FOV, widened for portrait aspects. This is a mobile-portrait
  * game first (see README) - a phone screen's aspect is roughly 0.42-0.5
@@ -27,7 +30,7 @@ function fovForAspect(aspect: number): number {
 }
 /** Pulled back and a bit higher while riding a dragon - it's a bigger subject and the point is to see more of the ride. */
 const MOUNTED_PIVOT_HEIGHT = 2.3;
-const MOUNTED_DISTANCE = 9;
+const MOUNTED_DISTANCE = 13;
 const MIN_PITCH = 0.12;
 const MAX_PITCH = 1.15;
 const LOOK_SENSITIVITY_X = 0.0045;
@@ -43,7 +46,7 @@ const LOOK_SENSITIVITY_Y = 0.0035;
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
   yaw = 0;
-  pitch = 0.34;
+  pitch = 0.62;
   distance = DEFAULT_DISTANCE;
   lockOnTarget: THREE.Object3D | null = null;
   /** Set by GameManager on mount/dismount - swaps in a pulled-back, higher framing. */

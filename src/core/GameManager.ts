@@ -20,6 +20,7 @@ import { QuestLog, defaultQuests } from '../world/QuestLog';
 import { DialogueSystem } from '../world/DialogueSystem';
 import { TouchControls } from '../ui/TouchControls';
 import { HUD } from '../ui/HUD';
+import { WorldHealthBars } from '../ui/WorldHealthBars';
 import { InventoryScreen } from '../ui/InventoryScreen';
 import { QuestTracker } from '../ui/QuestTracker';
 import { DialogueBox } from '../ui/DialogueBox';
@@ -66,6 +67,7 @@ export class GameManager {
 
   private touchControls!: TouchControls;
   private hud!: HUD;
+  private worldHealthBars!: WorldHealthBars;
   private inventoryScreen!: InventoryScreen;
   private questTracker!: QuestTracker;
   private dialogueBox!: DialogueBox;
@@ -119,6 +121,7 @@ export class GameManager {
     this.input.attach(this.renderer.domElement);
     this.touchControls = new TouchControls(this.input);
     this.hud = new HUD();
+    this.worldHealthBars = new WorldHealthBars();
     this.inventoryScreen = new InventoryScreen();
     this.questTracker = new QuestTracker(this.questLog);
     this.dialogueBox = new DialogueBox(this.dialogueSystem);
@@ -352,6 +355,7 @@ export class GameManager {
     this.cameraRig.update(dt, followPosition, lookDelta, this.collidables);
 
     this.renderer.render(this.scene, this.cameraRig.camera);
+    this.worldHealthBars.update(this.dragons, this.cameraRig.camera);
     this.updateHud();
 
     this.autosaveTimer += dt;

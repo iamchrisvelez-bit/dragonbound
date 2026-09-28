@@ -195,8 +195,8 @@ function injectStyles(): void {
       position: fixed;
       right: max(16px, env(safe-area-inset-right, 0px));
       bottom: max(16px, env(safe-area-inset-bottom, 0px));
-      width: 190px;
-      height: 190px;
+      width: 220px;
+      height: 220px;
       pointer-events: none;
     }
     .db-action-btn {
@@ -216,11 +216,16 @@ function injectStyles(): void {
       transform: scale(0.92);
       background: rgba(201, 92, 58, 0.75);
     }
-    .db-btn-attack { width: 78px; height: 78px; right: 0; bottom: 0; font-size: 13px; }
-    .db-btn-dodge { width: 56px; height: 56px; right: 80px; bottom: 10px; }
-    .db-btn-block { width: 56px; height: 56px; right: 4px; bottom: 96px; }
-    .db-btn-ability { width: 50px; height: 50px; right: 92px; bottom: 100px; }
-    .db-btn-mount { width: 48px; height: 48px; right: 130px; bottom: 40px; }
+    /* Laid out so no two circles' bounding boxes overlap (checked with at
+       least a 6px gap between every pair) - they used to (Attack and Dodge
+       shared a ~22x56px region, with Attack painted on top since it's added
+       to the DOM last, so a Dodge tap landing in that sliver silently fired
+       Attack instead - see git history for the exact old numbers). */
+    .db-btn-attack { width: 80px; height: 80px; right: 0; bottom: 0; font-size: 13px; }
+    .db-btn-dodge { width: 58px; height: 58px; right: 88px; bottom: 8px; }
+    .db-btn-block { width: 56px; height: 56px; right: 6px; bottom: 106px; }
+    .db-btn-ability { width: 50px; height: 50px; right: 98px; bottom: 112px; }
+    .db-btn-mount { width: 48px; height: 48px; right: 154px; bottom: 58px; }
   `;
   document.head.appendChild(style);
 }

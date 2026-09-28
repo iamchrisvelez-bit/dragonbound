@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { GameManager } from './core/GameManager';
 import { eventBus } from './core/EventBus';
 import { progressionManager } from './progression/ProgressionManager';
@@ -15,6 +16,7 @@ if (import.meta.env.DEV) {
   (window as unknown as { __DRAGONBOUND_PROGRESSION__: typeof progressionManager }).__DRAGONBOUND_PROGRESSION__ =
     progressionManager;
   (window as unknown as { __DRAGONBOUND_COMBAT__: typeof combatSystem }).__DRAGONBOUND_COMBAT__ = combatSystem;
+  (window as unknown as { __THREE__: typeof THREE }).__THREE__ = THREE;
 }
 
 game.init(container).catch((err) => {

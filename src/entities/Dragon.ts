@@ -48,6 +48,8 @@ interface DragonModelConfig {
   oneShotClips: string[];
   /** Visual-only scale so each archetype's native mesh size reads well at combat distance without touching hit detection. */
   visualScale: number;
+  /** Height above object3D's origin to anchor the floating HP bar (WorldHealthBars) - roughly "just above the head" for this archetype's scaled geometry. */
+  barAnchorHeight: number;
 }
 
 const EMBER_WYRM_CONFIG: DragonModelConfig = {
@@ -64,6 +66,7 @@ const EMBER_WYRM_CONFIG: DragonModelConfig = {
   hitClip: null,
   oneShotClips: ['Flap', 'Roar'],
   visualScale: 2.2, // the whelp's own geometry is ~0.73 units tall - too small at combat distance, see loadRealModel()
+  barAnchorHeight: 1.9,
 };
 
 const QUATERNIUS_DRAKE_CONFIG: DragonModelConfig = {
@@ -82,6 +85,7 @@ const QUATERNIUS_DRAKE_CONFIG: DragonModelConfig = {
   hitClip: 'Dragon_Hit',
   oneShotClips: ['Dragon_Hit'],
   visualScale: 0.6, // this asset's native geometry is ~3.85 units tall (a full adult, not a whelp) - scaled down to read as bigger-but-comparable to the knight, not a tower
+  barAnchorHeight: 2.6,
 };
 
 const DRAGON_MODEL_CONFIGS: Record<string, DragonModelConfig> = {
@@ -278,6 +282,11 @@ export class Dragon extends Entity {
 
   get isSpooked(): boolean {
     return performance.now() < this.spookedUntil;
+  }
+
+  /** World-space height above object3D's origin to anchor a floating HP bar (see WorldHealthBars). */
+  get barAnchorHeight(): number {
+    return this.modelConfig.barAnchorHeight;
   }
 
   /** Called by TamingController on a failed ResonanceMinigame attempt (see

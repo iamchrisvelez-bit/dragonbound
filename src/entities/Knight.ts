@@ -374,6 +374,12 @@ export class Knight extends Entity {
     if (loaded.animations.length === 0) return; // still just the placeholder shape; nothing to swap visually
     this.object3D.remove(this.visual);
     this.visual = loaded.scene;
+    // KayKit's Knight.glb is rigged facing local +Z; every movement/facing
+    // formula in this file (and CameraRig/GameManager) assumes local -Z is
+    // "forward" (see faceDirection's comment). Without this the character
+    // visually faces/leads with its back - it looks like it's moonwalking
+    // whenever it moves in its own intended forward direction.
+    this.visual.rotation.y = Math.PI;
     this.object3D.add(this.visual);
 
     this.mixer = new THREE.AnimationMixer(this.visual);
