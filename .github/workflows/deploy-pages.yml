@@ -32,7 +32,14 @@ jobs:
       - run: npm run build
       # Auto-enables Pages for this repo (source: GitHub Actions) on first
       # run if it isn't already, via the `pages: write` permission above.
+      # `enablement: true` is required for that - the action's own default
+      # is false (confirmed by a real failed run: it just 404s on "get
+      # Pages site" instead of creating one when Pages was never turned on
+      # for this repo before), so leaving it implicit silently skips the
+      # exact thing this comment used to claim happened automatically.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
