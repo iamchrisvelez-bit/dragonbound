@@ -249,7 +249,10 @@ function injectStyles(): void {
     .db-riding-badge {
       position: absolute;
       left: 50%;
-      top: max(44px, calc(env(safe-area-inset-top, 0px) + 44px));
+      /* Below the Menu button (top: ~46px, see GameManager.buildMenuButton) -
+         these used to sit at nearly the same offset and overlapped whenever
+         mounted, right when the badge most needs to be readable. */
+      top: max(78px, calc(env(safe-area-inset-top, 0px) + 78px));
       transform: translateX(-50%);
       background: rgba(111, 191, 115, 0.18);
       border: 1px solid rgba(111, 191, 115, 0.55);
