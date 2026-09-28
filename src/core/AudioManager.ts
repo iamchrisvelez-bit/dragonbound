@@ -36,7 +36,7 @@ export class AudioManager {
   }
 
   private playCurrent(): void {
-    this.audio.src = `/assets/audio/music/${this.playlist[this.index]}.ogg`;
+    this.audio.src = `${import.meta.env.BASE_URL}assets/audio/music/${this.playlist[this.index]}.ogg`;
     this.audio.muted = this.muted;
     // Playback can still be rejected in rare cases (tab backgrounded mid-call,
     // etc.) even after a real gesture unlocked audio - not worth surfacing.

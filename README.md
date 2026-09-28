@@ -28,6 +28,13 @@ stubbed" sections below are the maintained, authoritative status.
   `AnimationMixer` state graphs
 - **vite-plugin-pwa** — installable, offline-capable PWA
 
+## Play it now
+
+**https://iamchrisvelez-bit.github.io/dragonbound/** — deployed automatically
+from `main` via `.github/workflows/deploy-pages.yml` (GitHub Pages, source:
+GitHub Actions). Open it on a phone and "Add to Home Screen" to install it
+as a PWA. See "Deployment" below for how that works.
+
 ## Running it
 
 ```bash
@@ -35,10 +42,15 @@ npm install
 npm run dev
 ```
 
-`vite.config.ts` sets `server.host = true`, so Vite prints both a
-`localhost` URL and a LAN URL (`http://<your-machine-lan-ip>:5173`). Open
-the LAN URL on your phone (same Wi-Fi network) to test touch controls
-immediately — no build/deploy step needed.
+`vite.config.ts` sets both `server.host = true` and `base: '/dragonbound/'`
+(matching the GitHub Pages deployment path - see "Deployment"), so Vite
+serves the app at `/dragonbound/`, not the bare root, in every environment
+(dev, preview, and the production build alike - deliberately consistent
+rather than only surfacing a base-path bug after deploying). It prints both
+a `localhost` URL and a LAN URL
+(`http://<your-machine-lan-ip>:5173/dragonbound/`); open the LAN URL on your
+phone (same Wi-Fi network) to test touch controls immediately — no
+build/deploy step needed.
 
 Other scripts:
 
@@ -47,6 +59,40 @@ npm run typecheck   # tsc --noEmit
 npm run build        # typecheck + production build to /dist
 npm run preview      # serve the production build (also host:true)
 ```
+
+### Deployment
+
+Every push to `main` triggers `.github/workflows/deploy-pages.yml`, which
+runs `npm run build` (typecheck + production build) and publishes `dist/`
+to GitHub Pages via the official `actions/configure-pages` /
+`upload-pages-artifact` / `deploy-pages` actions - no separate hosting
+account or manual upload step. `actions/configure-pages` also enables
+Pages for the repo (source: GitHub Actions) automatically on its first
+run if it isn't already.
+
+GitHub Pages serves a project repo like this one at
+`https://<owner>.github.io/<repo>/` - a **subpath**, not the domain root.
+Everything that references a game asset by an absolute path had to
+account for that up front rather than discovering it broken after
+deploying:
+
+- `vite.config.ts` sets `base: '/dragonbound/'`, which Vite uses to
+  rewrite its own bundled JS/CSS/service-worker references automatically.
+- `index.html`'s `<link>` tags for the manifest and icons use Vite's
+  `%BASE_URL%` template var, since those are plain `public/` files Vite
+  doesn't rewrite on its own.
+- `public/manifest.json`'s `start_url`, `scope`, and icon paths are
+  hardcoded to `/dragonbound/...` - it's a static file Vite doesn't
+  process at all, unlike everything else here.
+- `src/core/AssetLoader.ts` and `AudioManager.ts` build their fetch URLs
+  from `import.meta.env.BASE_URL` instead of a hardcoded leading `/`, so
+  `/assets/models/dragon.glb` becomes `/dragonbound/assets/models/dragon.glb`
+  at runtime.
+
+Verified end-to-end with `vite preview` (which serves the real production
+build under the configured `base`, closely simulating the actual GitHub
+Pages path) plus live Playwright testing - not just by reading the
+generated `dist/index.html`.
 
 ### Controls
 

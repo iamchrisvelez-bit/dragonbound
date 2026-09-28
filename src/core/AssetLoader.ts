@@ -47,7 +47,7 @@ export class AssetLoader {
    * missing or fails to parse.
    */
   async loadModel(name: string, placeholderFactory: () => LoadedModel): Promise<LoadedModel> {
-    const gltf = await this.loadGltf(`/assets/models/${name}.glb`);
+    const gltf = await this.loadGltf(`${import.meta.env.BASE_URL}assets/models/${name}.glb`);
     if (!gltf) return placeholderFactory();
     return {
       scene: cloneSkinned(gltf.scene) as THREE.Object3D,
@@ -57,7 +57,7 @@ export class AssetLoader {
 
   /** Loads a standalone animation-only glb (common CC0 retargeting workflow). */
   async loadAnimationClips(name: string): Promise<THREE.AnimationClip[]> {
-    const gltf = await this.loadGltf(`/assets/animations/${name}.glb`);
+    const gltf = await this.loadGltf(`${import.meta.env.BASE_URL}assets/animations/${name}.glb`);
     return gltf?.animations ?? [];
   }
 }

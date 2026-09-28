@@ -2,6 +2,15 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // GitHub Pages serves a project repo (not a *.github.io user/org root repo)
+  // at https://<owner>.github.io/<repo>/, a subpath rather than the domain
+  // root. Every hardcoded absolute path in this app (AssetLoader.ts,
+  // AudioManager.ts, index.html's manifest/icon links, public/manifest.json)
+  // is written relative to this same base for consistency - see each of
+  // those for how. Set unconditionally (not just for production builds) so
+  // dev/preview match what's actually deployed instead of only surfacing a
+  // base-path bug after deploying.
+  base: '/dragonbound/',
   server: {
     host: true,
     port: 5173,

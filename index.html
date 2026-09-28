@@ -9,9 +9,13 @@
     <title>Dragonbound</title>
     <meta name="description" content="A mobile-first 3D fantasy action-RPG: knights who fight and tame dragons." />
     <meta name="theme-color" content="#0b0f1a" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <!-- %BASE_URL% is Vite's own template var for vite.config.ts's `base` -
+         these are public/ files, not part of the JS module graph Vite
+         rewrites automatically, so they need it explicitly to resolve
+         correctly once deployed under a subpath (see vite.config.ts). -->
+    <link rel="manifest" href="%BASE_URL%manifest.json" />
+    <link rel="icon" type="image/png" sizes="32x32" href="%BASE_URL%icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="%BASE_URL%icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Dragonbound" />
