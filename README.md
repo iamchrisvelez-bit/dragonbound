@@ -203,9 +203,10 @@ not a wide desktop window shrunk down:
   naming convention (they're from different sources, unlike the knight's
   single asset):
   - `public/assets/models/dragon.glb` (`ember-wyrm`, the solo "Feral
-    Wyrmling") - provided directly by the project owner; see
-    `public/assets/CREDITS.md` for the still-unconfirmed license/source
-    caveat. Ships 4 clips (Idle, Walk, Flap, Roar); the state graph
+    Wyrmling") - created by the project owner via an AI-run generation
+    script, not sourced from a third-party pack; see
+    `public/assets/CREDITS.md` for the ownership reasoning (no external
+    rightsholder to clear terms with either way). Ships 4 clips (Idle, Walk, Flap, Roar); the state graph
     reuses Roar as the attack windup telegraph and Flap as the
     active-attack pose (sped up per-attack via the same `timeScale`
     trick `Knight.ts` uses). Native geometry is a genuinely tiny "whelp"
@@ -252,16 +253,6 @@ not a wide desktop window shrunk down:
 
 ## What's stubbed / simplified
 
-- **`dragon.glb` (the "Feral Wyrmling")'s license/source still isn't
-  confirmed**: it was provided directly by the project owner rather than
-  sourced from a verified CC0 pack. This is specifically about that one
-  file - `dragon-quaternius.glb` (see the bullet above and
-  `public/assets/CREDITS.md`) is a separate, since-added asset with a
-  fully verified CC0 license, found by searching GitHub-hosted mirrors of
-  known CC0 packs rather than the (blocked) original host sites
-  (quaternius.com, Kenney, Sketchfab, itch.io, OpenGameArt). Confirm
-  `dragon.glb`'s licensing with the project owner before redistributing
-  this repository publicly.
 - **Neither dragon asset has a dedicated attack clip, and only one has any
   hit/death reaction at all**: `dragon.glb` ships Idle/Walk/Flap/Roar (no
   hit/death - the combat state graph reuses Roar/Flap for windup/active,
@@ -323,13 +314,12 @@ not a wide desktop window shrunk down:
 
 ## Suggested follow-up prompts
 
-1. **"Source a fuller dragon animation set (or confirm/replace the
-   current asset's license)"** — the current `dragon.glb` covers
-   idle/walk/attack-telegraph/active-attack reasonably well but has no
-   dedicated hit/death clip and an unconfirmed license (see "what's
-   stubbed"); either get licensing confirmed from the project owner, or
-   swap in a fuller-featured CC0 rigged dragon/wyvern and extend
-   `Dragon.ts`'s state graph to match.
+1. **"Source a fuller dragon animation set"** — both current dragon assets
+   are missing clips (`dragon.glb` has no hit/death; `dragon-quaternius.glb`
+   has no idle/walk/death or dedicated attack, see "what's built"); source
+   a fuller-featured CC0 rigged dragon/wyvern and extend `Dragon.ts`'s
+   `DRAGON_MODEL_CONFIGS` to match, the same pattern the existing two
+   archetypes already follow.
 2. **"Wire dragon origin/loyalty into live combat stats"** — apply
    `DragonLeveling.originStatMultiplier()` and the (currently unused)
    XP/leveling system onto a ridden/summoned Dragon's actual

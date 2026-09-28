@@ -20,15 +20,23 @@
 
 ## `models/dragon.glb`
 
-Provided directly by the project owner (this environment's network
-restrictions blocked every asset host that might have had one - see the
-README's earlier history for that search). Generator tag in the file
-reads `build_dragon_whelp.py`, suggesting a procedurally-built model
-rather than a named third-party pack.
+Created by the project owner via an AI-run generation script (the file's
+generator tag reads `build_dragon_whelp.py`) - not sourced from any
+third-party pack, so there's no external rightsholder's terms to clear.
 
-- License/source: **not yet confirmed** - ask the project owner before
-  redistributing this repository publicly or treating the asset as
-  cleared for arbitrary reuse.
+- **Ownership/license**: under current U.S. Copyright Office guidance,
+  copyright requires meaningful human authorship - a work produced by a
+  generative process with no substantive human creative input generally
+  isn't eligible for copyright at all. Two outcomes are both fine for
+  this project's purposes: if the project owner's direction over the
+  generation (design choices, iteration, selection) rises to the level of
+  human authorship, the project owner holds whatever copyright exists,
+  same as anything else they made; if it doesn't, the asset simply has no
+  rightsholder and is unencumbered. Either way, the project owner is
+  clear to use it here. (This read is jurisdiction-specific - e.g. the UK
+  has a distinct "computer-generated works" rule - and isn't legal
+  advice; it's a documentation note, not a warranty, and matters more the
+  more this repository's public/commercial distribution scales up.)
 - Contains 1 skinned mesh, 1 skin, 4 animation clips (Idle, Walk, Flap,
   Roar) - see the animation mapping in `src/entities/Dragon.ts`. There's
   no dedicated attack/hit/death clip; the state graph reuses Roar as an
@@ -45,8 +53,7 @@ monsters in that pack: Bat, Dragon, Skeleton, Slime).
   commercial use, no attribution required (credited here anyway).
 - **Sourcing note**: quaternius.com, itch.io, Sketchfab, and OpenGameArt
   (this pack's original distribution points) are all blocked by this
-  sandbox's network egress policy - the same restriction documented for
-  `dragon.glb` above. This file was instead retrieved from
+  sandbox's network egress policy. This file was instead retrieved from
   [BastiaanOlij/godot_dungeon](https://github.com/BastiaanOlij/godot_dungeon)
   on GitHub, a public repo that vendors the pack unmodified at
   `assets/quaternius.com/Animated Monster Pack/`, complete with
