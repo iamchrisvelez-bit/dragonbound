@@ -35,6 +35,12 @@ export class AudioManager {
     return this.muted;
   }
 
+  /** 0-1, applied immediately to the currently-playing track too (see Settings panel). */
+  setVolume(volume: number): void {
+    this.volume = Math.max(0, Math.min(1, volume));
+    this.audio.volume = this.volume;
+  }
+
   private playCurrent(): void {
     this.audio.src = `${import.meta.env.BASE_URL}assets/audio/music/${this.playlist[this.index]}.ogg`;
     this.audio.muted = this.muted;

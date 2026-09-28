@@ -53,6 +53,16 @@ export interface SavedProgression {
   inventoryGear: SavedGearItem[];
 }
 
+export interface SavedSettings {
+  /** 0-1, applied to AudioManager's shared background-music volume. */
+  musicVolume: number;
+  /** 0-1, applied to SfxManager's shared one-shot-sound volume. */
+  sfxVolume: number;
+  /** Multiplier on CameraRig's base look sensitivity; 1 = default. */
+  cameraSensitivity: number;
+  invertY: boolean;
+}
+
 export interface SaveData {
   version: number;
   savedAt: number;
@@ -63,6 +73,11 @@ export interface SaveData {
    * "finite and hand-placed" (design doc §3), so an opened one must stay
    * gone across reloads instead of respawning as a free reroll. */
   openedCrystalIds: string[];
+  settings: SavedSettings;
+}
+
+export function createDefaultSettings(): SavedSettings {
+  return { musicVolume: 0.35, sfxVolume: 0.7, cameraSensitivity: 1, invertY: false };
 }
 
 const DB_NAME = 'dragonbound';
@@ -93,6 +108,7 @@ export function createDefaultSave(): SaveData {
       equippedGear: {},
       inventoryGear: [],
     },
+    settings: createDefaultSettings(),
   };
 }
 
@@ -173,5 +189,8 @@ function migrateSave(data: SaveData): SaveData {
     loyalty: d.loyalty ?? 55,
   }));
   if (!Array.isArray(data.openedCrystalIds)) data.openedCrystalIds = [];
+  // settings was added after v1 shipped, same in-place-editable-session
+  // situation as origin/loyalty above - backfill rather than bump version.
+  if (!data.settings) data.settings = createDefaultSettings();
   return data;
 }

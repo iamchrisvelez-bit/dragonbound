@@ -3,7 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { InputManager } from './InputManager';
 import { CameraRig } from './CameraRig';
 import { AudioManager } from './AudioManager';
-import { SaveManager, createDefaultSave, type SaveData } from './SaveManager';
+import { SaveManager, createDefaultSave, createDefaultSettings, type SaveData, type SavedSettings } from './SaveManager';
 import { eventBus } from './EventBus';
 import { Knight } from '../entities/Knight';
 import { Dragon } from '../entities/Dragon';
@@ -25,6 +25,7 @@ import { FloatingText } from '../ui/FloatingText';
 import { DeathScreen } from '../ui/DeathScreen';
 import { DamageVignette } from '../ui/DamageVignette';
 import { StartScreen } from '../ui/StartScreen';
+import { PauseMenu } from '../ui/PauseMenu';
 import { sfx } from './SfxManager';
 import { InventoryScreen } from '../ui/InventoryScreen';
 import { QuestTracker } from '../ui/QuestTracker';
@@ -79,10 +80,12 @@ export class GameManager {
   private inventoryScreen!: InventoryScreen;
   private questTracker!: QuestTracker;
   private dialogueBox!: DialogueBox;
+  private pauseMenu!: PauseMenu;
 
   private autosaveTimer = 0;
   private respawnTimer = 0;
   private openedCrystalIds = new Set<string>();
+  private settings: SavedSettings = createDefaultSettings();
 
   async init(container: HTMLElement): Promise<void> {
     await RAPIER.init();
@@ -99,6 +102,12 @@ export class GameManager {
     progressionManager.loadFromSave(save.progression);
     playerStable.load(save.stable);
     this.openedCrystalIds = new Set(save.openedCrystalIds);
+
+    this.settings = save.settings;
+    this.audioManager.setVolume(this.settings.musicVolume);
+    sfx.volume = this.settings.sfxVolume;
+    this.cameraRig.sensitivityMultiplier = this.settings.cameraSensitivity;
+    this.cameraRig.invertY = this.settings.invertY;
 
     const spawn = new THREE.Vector3(...save.player.position);
     this.knight = new Knight(this.world, spawn);
@@ -136,6 +145,27 @@ export class GameManager {
     this.inventoryScreen = new InventoryScreen();
     this.questTracker = new QuestTracker(this.questLog);
     this.dialogueBox = new DialogueBox(this.dialogueSystem);
+    this.pauseMenu = new PauseMenu(this.settings, {
+      onMusicVolume: (v) => {
+        this.settings.musicVolume = v;
+        this.audioManager.setVolume(v);
+      },
+      onSfxVolume: (v) => {
+        this.settings.sfxVolume = v;
+        sfx.volume = v;
+      },
+      onSensitivity: (v) => {
+        this.settings.cameraSensitivity = v;
+        this.cameraRig.sensitivityMultiplier = v;
+      },
+      onInvertY: (v) => {
+        this.settings.invertY = v;
+        this.cameraRig.invertY = v;
+      },
+      onOpenInventory: () => this.inventoryScreen.toggle(),
+      onRestart: () => this.restartAdventure(),
+      onClose: () => void this.save(),
+    });
     this.buildMenuButton();
     this.buildAudioToggle();
 
@@ -188,8 +218,10 @@ export class GameManager {
   private buildMenuButton(): void {
     // Deliberately outside TouchControls: the five combat context buttons
     // (attack/dodge/block/ability wheel/mount) are the only things that
-    // live in the thumb cluster. Inventory is menu chrome, not combat
-    // input, so it gets its own small corner button (and the 'I' key).
+    // live in the thumb cluster. Menu chrome (pause/settings/inventory) is
+    // not combat input, so it gets its own small corner button, opening
+    // PauseMenu - Inventory is reachable one tap deeper from there (still
+    // also bound to 'I' directly, as a secondary desktop-testing path).
     const btn = document.createElement('button');
     btn.textContent = 'Menu';
     btn.style.cssText = `
@@ -213,7 +245,7 @@ export class GameManager {
     `;
     btn.addEventListener('click', () => {
       sfx.play('ui-tap');
-      this.inventoryScreen.toggle();
+      this.pauseMenu.toggle();
     });
     document.body.appendChild(btn);
 
@@ -574,12 +606,21 @@ export class GameManager {
       stable: playerStable.toSaveData(),
       openedCrystalIds: Array.from(this.openedCrystalIds),
       progression: progressionManager.toSaveData(),
+      settings: this.settings,
     };
   }
 
   async save(): Promise<void> {
     await this.saveManager.save(this.buildSaveData());
     eventBus.emit('save:saved', {});
+  }
+
+  /** PauseMenu's "Restart Adventure" - erases the save and reloads fresh,
+   * a way to reset without opening devtools (useful for testers, not just
+   * a real "new game" flow yet - there's only one save slot). */
+  private async restartAdventure(): Promise<void> {
+    await this.saveManager.clear();
+    window.location.reload();
   }
 
   /** Read-only snapshot for the dev console / smoke tests (see main.ts, DEV only). */

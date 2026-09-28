@@ -51,6 +51,9 @@ export class CameraRig {
   lockOnTarget: THREE.Object3D | null = null;
   /** Set by GameManager on mount/dismount - swaps in a pulled-back, higher framing. */
   mounted = false;
+  /** Multiplier on LOOK_SENSITIVITY_X/Y - see Settings panel. */
+  sensitivityMultiplier = 1;
+  invertY = false;
 
   private raycaster = new THREE.Raycaster();
   private currentCamPos: THREE.Vector3 | null = null;
@@ -96,8 +99,13 @@ export class CameraRig {
       this.yaw = lerpAngle(this.yaw, desiredYaw, Math.min(1, dt * 5));
       this.pitch = clamp(this.pitch + (0.3 - this.pitch) * Math.min(1, dt * 5), MIN_PITCH, MAX_PITCH);
     } else {
-      this.yaw -= lookDelta.x * LOOK_SENSITIVITY_X;
-      this.pitch = clamp(this.pitch - lookDelta.y * LOOK_SENSITIVITY_Y, MIN_PITCH, MAX_PITCH);
+      this.yaw -= lookDelta.x * LOOK_SENSITIVITY_X * this.sensitivityMultiplier;
+      const pitchSign = this.invertY ? 1 : -1;
+      this.pitch = clamp(
+        this.pitch + pitchSign * lookDelta.y * LOOK_SENSITIVITY_Y * this.sensitivityMultiplier,
+        MIN_PITCH,
+        MAX_PITCH,
+      );
     }
 
     const offsetDir = new THREE.Vector3(
