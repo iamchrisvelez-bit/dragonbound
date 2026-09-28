@@ -173,7 +173,12 @@ export class GameManager {
     btn.textContent = 'Menu';
     btn.style.cssText = `
       position: fixed;
-      top: max(14px, env(safe-area-inset-top, 0px));
+      /* Below the health/stamina bars (top-left, ~14px + ~25px tall) rather
+         than beside them - on a narrow portrait screen the bars (up to
+         220px wide) and a horizontally-centered button both competing for
+         the top row's width collide; stacking vertically clears that at
+         any screen width instead of fighting over horizontal space. */
+      top: max(46px, calc(env(safe-area-inset-top, 0px) + 46px));
       left: 50%;
       transform: translateX(-50%);
       z-index: 25;

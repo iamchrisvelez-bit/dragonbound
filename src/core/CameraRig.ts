@@ -5,6 +5,26 @@ const PIVOT_HEIGHT = 1.4;
 const DEFAULT_DISTANCE = 6;
 const MIN_DISTANCE = 1.6;
 const MAX_DISTANCE = 7.5;
+/**
+ * Vertical FOV, widened for portrait aspects. This is a mobile-portrait
+ * game first (see README) - a phone screen's aspect is roughly 0.42-0.5
+ * (width/height), and a plain fixed 60° vertical FOV built/tuned on a
+ * landscape desktop viewport leaves a noticeably narrow horizontal field
+ * of view once the same vertical FOV is stretched over a tall, narrow
+ * canvas. Fully preserving landscape's horizontal FOV in portrait would
+ * mean a 90-100°+ vertical FOV, which reads as fisheye distortion on a
+ * phone rather than "wider view" - so this only blends partway there.
+ */
+const LANDSCAPE_FOV = 60;
+const PORTRAIT_FOV = 72;
+/** Aspect (width/height) at which PORTRAIT_FOV is fully reached; typical phones (~0.42-0.5) sit at or past this. */
+const PORTRAIT_FOV_ASPECT = 0.5;
+
+function fovForAspect(aspect: number): number {
+  if (aspect >= 1) return LANDSCAPE_FOV;
+  const t = clamp((1 - aspect) / (1 - PORTRAIT_FOV_ASPECT), 0, 1);
+  return LANDSCAPE_FOV + (PORTRAIT_FOV - LANDSCAPE_FOV) * t;
+}
 /** Pulled back and a bit higher while riding a dragon - it's a bigger subject and the point is to see more of the ride. */
 const MOUNTED_PIVOT_HEIGHT = 2.3;
 const MOUNTED_DISTANCE = 9;
@@ -33,11 +53,12 @@ export class CameraRig {
   private currentCamPos: THREE.Vector3 | null = null;
 
   constructor(aspect: number) {
-    this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 250);
+    this.camera = new THREE.PerspectiveCamera(fovForAspect(aspect), aspect, 0.1, 250);
   }
 
   setAspect(aspect: number): void {
     this.camera.aspect = aspect;
+    this.camera.fov = fovForAspect(aspect);
     this.camera.updateProjectionMatrix();
   }
 

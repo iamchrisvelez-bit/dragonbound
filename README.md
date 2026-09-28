@@ -1,8 +1,13 @@
 # Dragonbound
 
-A mobile-first 3D fantasy action-RPG: knights who fight and eventually tame
-dragons. Built to run entirely in the browser — no desktop game editor,
-just Vite + TypeScript + Three.js + Rapier physics, installable as a PWA.
+A mobile-first, **portrait-orientation** 3D fantasy action-RPG: knights who
+fight and eventually tame dragons. Built to run entirely in the browser —
+no desktop game editor, just Vite + TypeScript + Three.js + Rapier physics,
+installable as a PWA. This is not a widescreen/landscape game with mobile
+support bolted on - the UI layout, camera FOV, and touch controls are all
+built and tested against a narrow, tall viewport (see "Portrait
+orientation" below) - landscape/desktop is only a secondary dev-testing
+convenience (see "Controls").
 
 **Design doc:** [`docs/design/crystal-and-taming-systems.md`](docs/design/crystal-and-taming-systems.md)
 is the canonical design reference for the two dragon-acquisition systems
@@ -60,6 +65,44 @@ npm run preview      # serve the production build (also host:true)
 Touch is the primary path; keyboard/gamepad are secondary dev-testing
 paths — both drive the same `InputManager`, so gameplay code never knows
 which one is in use.
+
+### Portrait orientation
+
+The whole game is built and tested against a narrow, tall viewport (an
+iPhone-class ~390×844 was the reference size during this round's testing),
+not a wide desktop window shrunk down:
+
+- **`public/manifest.json` locks `orientation: "portrait"`** - installed
+  as a PWA, the OS won't rotate the game into landscape.
+- **`CameraRig`'s vertical FOV widens automatically for narrow aspects**
+  (`fovForAspect` in `src/core/CameraRig.ts`) - a fixed FOV tuned on a
+  landscape desktop viewport, then stretched over a portrait phone's
+  aspect (typically 0.42-0.5 width/height), leaves a noticeably narrow
+  horizontal field of view; this blends the vertical FOV from 60° up to
+  72° as the aspect narrows (capped well short of the 90-100°+ that fully
+  preserving landscape's horizontal FOV would require, which reads as
+  fisheye distortion on a phone).
+- **HUD chrome is kept deliberately compact and vertically stacked, not
+  side-by-side**, since a phone's width is the scarce dimension: the
+  health/stamina bars (top-left) and the "Menu" button are stacked
+  vertically rather than sharing a row (they'd otherwise collide once the
+  bars' `min(220px, 45vw)` width and a centered button both compete for
+  space under ~400px of width), and `QuestTracker` collapses to a
+  one-line-per-quest summary by default, expanding on tap, rather than
+  always showing full descriptions (two always-expanded quest cards ate
+  roughly half the vertical space above the 3D viewport on a phone-height
+  screen - a non-issue on the wide desktop viewport this was first built
+  and tested against).
+- **Touch hit-testing note for anyone adding a new tappable HUD element**:
+  `TouchControls`' full-height look-drag zones (`.db-left-zone` /
+  `.db-right-zone`, `z-index: 20`) cover the *entire* left/right halves of
+  the screen, not just the on-screen joystick/buttons - any new
+  interactive element positioned over either half needs a `z-index` above
+  20 (see `QuestTracker`'s `z-index: 21`) or its taps get swallowed by the
+  drag zone underneath. This is invisible in a landscape-desktop mouse
+  test (pointerdown/pointermove/pointerup roundtrip mid-drag still
+  "just works" fine with a mouse) and only shows up under a real touch
+  pointer type or an explicit touch-event test.
 
 ## What's built (playable vertical slice)
 
