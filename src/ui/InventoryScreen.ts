@@ -1,6 +1,8 @@
 import { skillTreeData, type SkillBranch, type SkillNode } from '../progression/SkillTree';
 import { progressionManager } from '../progression/ProgressionManager';
+import { playerStable } from '../taming/PlayerStable';
 import type { GearSlot, RolledGearItem } from '../progression/Gear';
+import type { SavedStabledDragon } from '../core/SaveManager';
 
 let stylesInjected = false;
 
@@ -54,9 +56,69 @@ export class InventoryScreen {
     points.textContent = `Skill Points: ${progressionManager.skillPoints}`;
     this.root.appendChild(points);
 
+    this.root.appendChild(this.renderStableSection());
     this.root.appendChild(this.renderSkillSection());
     this.root.appendChild(this.renderEquipmentSection());
     this.root.appendChild(this.renderGearSection());
+  }
+
+  // ---- Stable (tamed + crystalborn dragons) --------------------------------
+
+  private renderStableSection(): HTMLElement {
+    const section = document.createElement('div');
+    section.className = 'db-inv-section';
+    const heading = document.createElement('h2');
+    heading.textContent = 'Stable';
+    section.appendChild(heading);
+
+    const dragons = playerStable.list();
+    if (dragons.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'db-branch-desc';
+      empty.textContent = 'No dragons yet. Tame a wild one, or attune a sealed crystal.';
+      section.appendChild(empty);
+      return section;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'db-stable-grid';
+    for (const dragon of dragons) grid.appendChild(this.renderStableCard(dragon));
+    section.appendChild(grid);
+    return section;
+  }
+
+  private renderStableCard(dragon: SavedStabledDragon): HTMLElement {
+    const card = document.createElement('div');
+    card.className = `db-stable-card db-origin-${dragon.origin}`;
+
+    const name = document.createElement('strong');
+    name.textContent = dragon.name;
+    card.appendChild(name);
+
+    const badge = document.createElement('span');
+    badge.className = 'db-origin-badge';
+    badge.textContent = originLabel(dragon.origin);
+    card.appendChild(badge);
+
+    const level = document.createElement('em');
+    level.textContent = `Level ${dragon.level}`;
+    card.appendChild(level);
+
+    if (dragon.origin === 'tamed') {
+      const loyaltyTrack = document.createElement('div');
+      loyaltyTrack.className = 'db-loyalty-track';
+      const loyaltyFill = document.createElement('div');
+      loyaltyFill.className = 'db-loyalty-fill';
+      loyaltyFill.style.width = `${Math.max(0, Math.min(100, dragon.loyalty))}%`;
+      loyaltyTrack.appendChild(loyaltyFill);
+      card.appendChild(loyaltyTrack);
+      const loyaltyLabel = document.createElement('span');
+      loyaltyLabel.className = 'db-loyalty-label';
+      loyaltyLabel.textContent = `Loyalty ${Math.round(dragon.loyalty)}`;
+      card.appendChild(loyaltyLabel);
+    }
+
+    return card;
   }
 
   // ---- Skill tree (radial wheel per branch) --------------------------------
@@ -278,6 +340,17 @@ export class InventoryScreen {
   }
 }
 
+function originLabel(origin: SavedStabledDragon['origin']): string {
+  switch (origin) {
+    case 'crystalborn-whole':
+      return 'Crystalborn';
+    case 'crystalborn-fractured':
+      return 'Crystalborn (Fractured)';
+    case 'tamed':
+      return 'Tamed';
+  }
+}
+
 function injectStyles(): void {
   if (stylesInjected) return;
   stylesInjected = true;
@@ -352,6 +425,43 @@ function injectStyles(): void {
     .db-wheel-node.db-unlocked { border-color: #6fbf73; background: rgba(111, 191, 115, 0.2); }
     .db-wheel-node.db-unlocked em { color: #6fbf73; }
     .db-wheel-node.db-locked { opacity: 0.4; }
+
+    .db-stable-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+    .db-stable-card {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+    .db-stable-card strong { font-size: 13px; }
+    .db-stable-card em { font-style: normal; opacity: 0.7; font-size: 11px; }
+    .db-origin-badge {
+      align-self: flex-start;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+    }
+    .db-origin-crystalborn-whole { border-color: rgba(90, 169, 230, 0.55); background: rgba(90, 169, 230, 0.1); }
+    .db-origin-crystalborn-whole .db-origin-badge { color: #5aa9e6; background: rgba(90, 169, 230, 0.18); }
+    .db-origin-crystalborn-fractured { border-color: rgba(201, 92, 58, 0.5); background: rgba(201, 92, 58, 0.08); }
+    .db-origin-crystalborn-fractured .db-origin-badge { color: #c95c3a; background: rgba(201, 92, 58, 0.18); }
+    .db-origin-tamed .db-origin-badge { color: #6fbf73; background: rgba(111, 191, 115, 0.18); }
+    .db-loyalty-track {
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.12);
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .db-loyalty-fill { height: 100%; background: linear-gradient(90deg, #6a4fa8, #d4a853); }
+    .db-loyalty-label { font-size: 10px; opacity: 0.7; }
 
     .db-equip-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .db-equip-slot {

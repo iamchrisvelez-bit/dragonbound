@@ -25,7 +25,15 @@ export interface GameEvents {
   'taming:started': { dragonId: string };
   'taming:progress': { dragonId: string; bond: number };
   'taming:success': { dragonId: string };
+  /** A failed match or a released hold - the dragon flees and grows warier (see ResonanceMinigame / Dragon.flee). */
   'taming:failed': { dragonId: string };
+
+  'crystal:attune-started': { crystalId: string };
+  /** Fired every frame while a crystal is held, 0-1, so the HUD can drive its resonance bar. */
+  'crystal:attune-progress': { crystalId: string; progress: number };
+  'crystal:destabilizing': { crystalId: string };
+  'crystal:evaporated': { crystalId: string; dragonName: string };
+  'crystal:fractured': { crystalId: string; dragonName: string };
 
   'progression:skill-unlocked': { branchId: string; nodeId: string };
   'progression:gear-equipped': { slot: string; itemId: string };

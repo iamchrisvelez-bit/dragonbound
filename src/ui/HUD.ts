@@ -13,6 +13,8 @@ export interface HudState {
   maxStamina: number;
   /** null hides the bond bar entirely (only shown mid-taming) */
   bond: number | null;
+  /** null hides the resonance bar entirely (only shown while attuning a crystal - see CrystalController) */
+  resonance: number | null;
   /** contextual hint line, e.g. "Tap Mount to begin taming" */
   prompt: string | null;
   /** null hides the riding badge; set to the mount's display name while mounted */
@@ -27,6 +29,8 @@ export class HUD {
   private staminaFill: HTMLDivElement;
   private bondTrack: HTMLDivElement;
   private bondFill: HTMLDivElement;
+  private resonanceTrack: HTMLDivElement;
+  private resonanceFill: HTMLDivElement;
   private promptEl: HTMLDivElement;
   private ridingEl: HTMLDivElement;
   private minimapCanvas: HTMLCanvasElement;
@@ -65,6 +69,13 @@ export class HUD {
     this.bondTrack.appendChild(this.bondFill);
     bars.appendChild(this.bondTrack);
 
+    this.resonanceTrack = document.createElement('div');
+    this.resonanceTrack.className = 'db-bar-track db-resonance-track db-hidden';
+    this.resonanceFill = document.createElement('div');
+    this.resonanceFill.className = 'db-bar-fill db-resonance-fill';
+    this.resonanceTrack.appendChild(this.resonanceFill);
+    bars.appendChild(this.resonanceTrack);
+
     this.promptEl = document.createElement('div');
     this.promptEl.className = 'db-prompt db-hidden';
     this.root.appendChild(this.promptEl);
@@ -90,6 +101,13 @@ export class HUD {
     } else {
       this.bondTrack.classList.remove('db-hidden');
       this.bondFill.style.width = `${pct(state.bond, 100)}%`;
+    }
+
+    if (state.resonance === null) {
+      this.resonanceTrack.classList.add('db-hidden');
+    } else {
+      this.resonanceTrack.classList.remove('db-hidden');
+      this.resonanceFill.style.width = `${pct(state.resonance, 100)}%`;
     }
 
     if (state.prompt) {
@@ -194,6 +212,7 @@ function injectStyles(): void {
     }
     .db-stamina-track { height: 8px; }
     .db-bond-track { height: 8px; }
+    .db-resonance-track { height: 8px; }
     .db-bar-fill {
       height: 100%;
       border-radius: 6px;
@@ -202,6 +221,7 @@ function injectStyles(): void {
     .db-health-fill { background: linear-gradient(90deg, #8f2b2b, #c95c3a); }
     .db-stamina-fill { background: linear-gradient(90deg, #2b6b6b, #4fa8a8); }
     .db-bond-fill { background: linear-gradient(90deg, #6a4fa8, #d4a853); }
+    .db-resonance-fill { background: linear-gradient(90deg, #4a2f8f, #f2e9d8); }
     .db-hidden { display: none !important; }
 
     .db-prompt {

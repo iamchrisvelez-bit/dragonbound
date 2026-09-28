@@ -15,6 +15,15 @@ export interface SavedPlayerState {
   xp: number;
 }
 
+/**
+ * How a dragon joined the stable - drives the stat-ceiling asymmetry between
+ * the two acquisition systems (see docs/design/crystal-and-taming-systems.md
+ * §5): crystalborn dragons have a fixed ceiling set at the moment the
+ * crystal opened; tamed dragons have a `loyalty` value that can rise or
+ * fall instead. See `originStatMultiplier` in `progression/DragonLeveling.ts`.
+ */
+export type DragonOrigin = 'tamed' | 'crystalborn-whole' | 'crystalborn-fractured';
+
 export interface SavedStabledDragon {
   id: string;
   name: string;
@@ -22,6 +31,9 @@ export interface SavedStabledDragon {
   level: number;
   xp: number;
   tamedAt: number;
+  origin: DragonOrigin;
+  /** 0-100. Only meaningful for `origin: 'tamed'` - crystalborn dragons don't have this axis. */
+  loyalty: number;
 }
 
 export interface SavedGearItem {
@@ -47,6 +59,10 @@ export interface SaveData {
   player: SavedPlayerState;
   stable: SavedStabledDragon[];
   progression: SavedProgression;
+  /** Crystal ids already resolved (evaporated or fractured) - crystals are
+   * "finite and hand-placed" (design doc §3), so an opened one must stay
+   * gone across reloads instead of respawning as a free reroll. */
+  openedCrystalIds: string[];
 }
 
 const DB_NAME = 'dragonbound';
@@ -70,6 +86,7 @@ export function createDefaultSave(): SaveData {
       xp: 0,
     },
     stable: [],
+    openedCrystalIds: [],
     progression: {
       unlockedSkillNodeIds: [],
       skillPoints: 1,
@@ -148,5 +165,13 @@ function migrateSave(data: SaveData): SaveData {
   if (!data.player || !data.progression || !Array.isArray(data.stable)) {
     return createDefaultSave();
   }
+  // origin/loyalty/openedCrystalIds were added after v1 shipped; backfill
+  // saves from before that (in-place-editable session, so `version` didn't bump).
+  data.stable = data.stable.map((d) => ({
+    ...d,
+    origin: d.origin ?? 'tamed',
+    loyalty: d.loyalty ?? 55,
+  }));
+  if (!Array.isArray(data.openedCrystalIds)) data.openedCrystalIds = [];
   return data;
 }

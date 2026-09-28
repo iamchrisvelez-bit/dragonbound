@@ -14,6 +14,15 @@ const CHASE_STOP_DISTANCE = 1.4;
 const DEFAULT_EYE_COLOR = 0xd4a853;
 const DEFAULT_EYE_INTENSITY = 0.6;
 
+// Wild-taming failure response (docs/design/crystal-and-taming-systems.md §4,
+// "failure is a spooked dragon, not a lost one"): a failed ResonanceMinigame
+// attempt flees the dragon instead of just resetting it for an instant retry,
+// and permanently (for the session - wild dragons don't persist across zone
+// reloads anyway, see README) tightens the next attempt's signature.
+const FLEE_SPEED = 4.5;
+const SPOOK_COOLDOWN_MS = 4500;
+const MAX_WARINESS = 5;
+
 // Animation state graph: clip names from the uploaded dragon_whelp.glb (see
 // public/assets/CREDITS.md). Only 4 clips exist - no dedicated attack/hit/
 // death - so Roar stands in as the windup telegraph and Flap as the
@@ -51,8 +60,14 @@ export class Dragon extends Entity {
   /** Knight id currently riding this dragon, if any. While set, updateAI() no-ops - GameManager drives movement directly. */
   riddenBy: string | null = null;
 
+  /** Failed-taming-attempt counter (see docs/design/crystal-and-taming-systems.md §4). Tightens ResonanceMinigame's next signature. Session-only, like the dragon itself. */
+  wariness = 0;
+  private spookedUntil = 0;
+
   private visual: THREE.Object3D;
   private eyeMaterials: THREE.MeshStandardMaterial[] = [];
+  /** Set only for a crystal-fractured spawn (see loadRealModel/applyFracturedTint) - dulls the model's materials as the visible "scar" the design doc calls for. */
+  private fractured = false;
 
   private phase: DragonPhase = 'idle';
   private currentAttack: DragonAttackDef | null = null;
@@ -63,21 +78,25 @@ export class Dragon extends Entity {
   private mixer: THREE.AnimationMixer | null = null;
   private animActions = new Map<string, THREE.AnimationAction>();
   private currentAnimName: string | null = null;
+  private bondFlareUntil = 0;
 
   constructor(
     world: RAPIER.World,
     startPosition: THREE.Vector3,
     displayName = 'Feral Wyrmling',
     archetype = 'ember-wyrm',
+    fractured = false,
   ) {
     super('dragon', 160);
     this.displayName = displayName;
     this.archetype = archetype;
+    this.fractured = fractured;
     this.radius = 1.1;
 
     const built = buildDragonPlaceholder();
     this.visual = built.group;
     this.eyeMaterials = built.eyeMaterials;
+    if (this.fractured) applyFracturedTint(this.visual);
     this.object3D.add(this.visual);
     this.object3D.position.copy(startPosition);
 
@@ -123,6 +142,14 @@ export class Dragon extends Entity {
     }
 
     if (this.ai.state !== 'feral') {
+      if (this.isSpooked) {
+        // Coasting away from a failed taming attempt (see flee()) - let the
+        // velocity flee() already set keep carrying it, and don't re-face
+        // the player, until rigidBody.linearDamping settles it naturally
+        // (same deceleration trick the lunge attack's velocity burst uses).
+        this.object3D.quaternion.setFromAxisAngle(UP, this.facingYaw);
+        return;
+      }
       this.rigidBody?.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.object3D.quaternion.setFromAxisAngle(UP, this.facingYaw);
       return;
@@ -197,6 +224,35 @@ export class Dragon extends Entity {
     this.isMovingExternally = velocity.lengthSq() > 0.0001;
   }
 
+  get isSpooked(): boolean {
+    return performance.now() < this.spookedUntil;
+  }
+
+  /** Called by TamingController on a failed ResonanceMinigame attempt (see
+   * docs/design/crystal-and-taming-systems.md §4). Pushes the dragon away
+   * from the player with a real velocity impulse (not a teleport - it's
+   * visible, and Rapier's linearDamping settles it naturally, same as the
+   * lunge attack's burst), grows `wariness` so the next attempt's signature
+   * is tighter, and starts a short "too spooked to approach" cooldown
+   * during which TamingController won't offer it as a candidate again. */
+  flee(awayFromPosition: THREE.Vector3): void {
+    this.wariness = Math.min(this.wariness + 1, MAX_WARINESS);
+    this.spookedUntil = performance.now() + SPOOK_COOLDOWN_MS;
+    const dir = this.object3D.position.clone().sub(awayFromPosition).setY(0);
+    if (dir.lengthSq() < 0.0001) dir.set(0, 0, 1);
+    dir.normalize();
+    this.rigidBody?.setLinvel({ x: dir.x * FLEE_SPEED, y: 0, z: dir.z * FLEE_SPEED }, true);
+    this.faceDirection(dir);
+  }
+
+  /** Called by TamingController for the mid-hold "the dragon reacts - it
+   * tests the bond, moves, flares" beat (§4 step 4). Purely cosmetic: plays
+   * the Roar clip once, sped to fit, without disturbing the AI/phase state
+   * driving it (see updateAnimationMixer's 'bonding' branch below). */
+  playBondFlare(durationSeconds = 0.9): void {
+    this.bondFlareUntil = performance.now() + durationSeconds * 1000;
+  }
+
   /** Advances the animation mixer and picks the right clip for the current
    * state. Called every frame by GameManager for every dragon, regardless
    * of feral/tamed/ridden state, so the mixer never stalls. No-ops until
@@ -204,6 +260,8 @@ export class Dragon extends Entity {
   updateAnimationMixer(dt: number): void {
     if (this.riddenBy) {
       this.playAnimation(this.isMovingExternally ? ANIM_WALK : ANIM_IDLE);
+    } else if (this.ai.state === 'bonding' && performance.now() < this.bondFlareUntil) {
+      this.playAnimation(ANIM_ROAR, 0.9);
     } else if (this.ai.state !== 'feral') {
       this.playAnimation(ANIM_IDLE);
     } else {
@@ -383,6 +441,7 @@ export class Dragon extends Entity {
     // detection isn't affected by this cosmetic resize.
     this.visual.scale.setScalar(DRAGON_VISUAL_SCALE);
     this.eyeMaterials = []; // real assets telegraph via their own animations, not the placeholder's eye-flash hack
+    if (this.fractured) applyFracturedTint(this.visual);
     this.object3D.add(this.visual);
 
     this.mixer = new THREE.AnimationMixer(this.visual);
@@ -392,6 +451,27 @@ export class Dragon extends Entity {
       else console.warn(`[Dragon] animation clip "${name}" not found in dragon.glb`);
     }
   }
+}
+
+/** The "dulled, visibly lesser" palette a fractured crystal (§3) leaves on
+ * its dragon - a real, permanent scar rather than just a stat penalty. No
+ * mask-texture system exists yet (see docs/design/crystal-and-taming-systems.md
+ * §10), so this approximates it with a flat desaturating multiply over
+ * every unique material found on the mesh (works for both the placeholder
+ * and the real glTF; dedupes shared materials, e.g. buildDragonPlaceholder's
+ * two wing meshes share one material instance, so each is only darkened once). */
+function applyFracturedTint(visual: THREE.Object3D): void {
+  const seen = new Set<THREE.Material>();
+  visual.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of materials) {
+      if (seen.has(mat) || !(mat instanceof THREE.MeshStandardMaterial)) continue;
+      seen.add(mat);
+      mat.color.multiplyScalar(0.55);
+    }
+  });
 }
 
 /** A capsule-bodied low-poly placeholder dragon, swapped for a real glTF

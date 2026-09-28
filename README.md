@@ -4,6 +4,13 @@ A mobile-first 3D fantasy action-RPG: knights who fight and eventually tame
 dragons. Built to run entirely in the browser — no desktop game editor,
 just Vite + TypeScript + Three.js + Rapier physics, installable as a PWA.
 
+**Design doc:** [`docs/design/crystal-and-taming-systems.md`](docs/design/crystal-and-taming-systems.md)
+is the canonical design reference for the two dragon-acquisition systems
+(sealed crystals vs. taming wild dragons) and the wider "generated
+bestiary" vision for the game. Its §10 tracks exactly what's implemented
+against the doc vs. still a gap; this README's "What's built"/"What's
+stubbed" sections below are the maintained, authoritative status.
+
 ## Stack
 
 - **Three.js** — rendering
@@ -46,7 +53,7 @@ npm run preview      # serve the production build (also host:true)
 | Dodge | Dodge button | Shift / K | B / Circle |
 | Block (hold) | Block button | Ctrl / L | LT / L2 |
 | Ability wheel (Riposte parry, if Blade's "Riposte" is unlocked) | Ability button | Q | Y / Triangle |
-| Mount toggle (start taming a wary dragon / mount or dismount a tamed one) | Mount button | F | RB / R1 |
+| Mount toggle (tap: start taming a wary dragon / mount or dismount a tamed one · hold: attune a nearby sealed crystal) | Mount button | F | RB / R1 |
 | Lock-on toggle | — (bind a button if desired) | C | Left stick click |
 | Inventory / skill tree | "Menu" button (top center) | I | — |
 
@@ -76,13 +83,46 @@ which one is in use.
   "Pack Wyrmling" spawns in `ZoneLoader.ts`).
 - **Weaken the dragon**: landing hits reduces its HP; Rapier physics
   drives both entities' movement/collision.
-- **Tame it**: once the dragon's HP drops below 30%, its AI state machine
-  (`feral → wary → bonding → tamed`, `src/taming/DragonAI.ts`) flips to
-  `wary` and stops attacking. Walk up and press Mount to start a timed
-  tap-sequence minigame (`src/taming/TamingMinigame.ts`) driving a
-  `BondMeter`; tap the Attack button on each prompt. Success flags the
-  dragon `tamed` and adds it to `PlayerStable`, plus grants a skill point
-  and a rolled gear item as a reward.
+- **Tame it (System B - "crystal tech")**: once the dragon's HP drops
+  below 30%, its AI state machine (`feral → wary → bonding → tamed`,
+  `src/taming/DragonAI.ts`) flips to `wary` and stops attacking. Walk up
+  and press Mount to start `ResonanceMinigame` (`src/taming/ResonanceMinigame.ts`,
+  orchestrated by `TamingController.ts`): a brief **reading** pause, then
+  **matching** (tap the Attack button on the beat - a rhythm test, per
+  [the design doc](docs/design/crystal-and-taming-systems.md#4-system-b--crystal-tech-taming-wild-dragons)),
+  then **holding** (hold Mount through the dragon "testing" the bond).
+  Success flags the dragon `tamed` and adds it to `PlayerStable` with a
+  starting `loyalty` value, plus grants a skill point and a rolled gear
+  item. **Failure flees the dragon** (a real velocity impulse away from
+  the player, not a teleport) instead of an instant do-over, and grows its
+  `wariness` (`Dragon.ts`) so the next attempt's signature has more beats
+  and tighter tap windows - per the design doc's "failure is a spooked
+  dragon, not a lost one."
+- **Sealed crystals (System A)**: two hand-placed, glowing crystals
+  (`src/world/Crystal.ts`) sit in the zone from the start - one near
+  spawn, one farther out. Hold Mount near one to attune
+  (`src/taming/CrystalController.ts`); a resonance meter fills over ~6.5
+  seconds with escalating Vibration-API feedback (light ticks, a stronger
+  mid-hold "destabilizing" buzz). **Let go before it finishes and the
+  crystal fractures instead of evaporating** - either way it still yields
+  a dragon, added directly to the stable and spawned live (so it's
+  immediately part of the world and rideable), but a fractured one is
+  visibly dulled (`applyFracturedTint` in `Dragon.ts`) and has a lower
+  permanent stat ceiling (see the asymmetry bullet below). Rushing or
+  releasing the hold is entirely the player's own choice - rarity here is
+  player-determined, not RNG. Opened crystals are tracked in save data
+  (`openedCrystalIds`) so they don't respawn as a free reroll on reload.
+- **Crystalborn vs. tamed dragons are mechanically different, on purpose**:
+  every stable dragon (`SavedStabledDragon` in `SaveManager.ts`) now
+  carries an `origin` (`'tamed' | 'crystalborn-whole' | 'crystalborn-fractured'`).
+  `DragonLeveling.originStatMultiplier()` gives crystalborn dragons a
+  **fixed stat ceiling** set the moment the crystal resolved (higher if it
+  evaporated, a permanent "scar" if it fractured), while tamed dragons
+  instead get a **loyalty value (0-100) that can rise** - it grows slowly
+  while you ride one (`PlayerStable.adjustLoyalty`, in `GameManager.tick`)
+  - **or just start lower** and stay there if you never do. The
+  Inventory screen's new Stable section shows every dragon's origin badge
+  and (for tamed dragons) its loyalty bar.
 - **Ride it**: press Mount again near a tamed dragon to hop on (Bond's
   "Saddle-Ready" skips the ~6s settle delay a freshly tamed dragon
   otherwise needs) - WASD/joystick then drives the dragon directly and
@@ -125,15 +165,19 @@ which one is in use.
   stay legible at normal third-person combat distance; the Rapier
   collider and hurtbox radius are untouched by that scale-up.
 - **Quest tracker + dialogue box**: a small always-on HUD panel
-  (`src/ui/QuestTracker.ts`) tracks the active `QuestLog` quest live, and
-  a tap-to-advance dialogue box (`src/ui/DialogueBox.ts`) renders
-  `DialogueSystem` lines - both just thin UI over the existing systems,
-  not new game logic. A short intro dialogue plays on boot to exercise it.
-- **Richer inventory screen**: the skill tree renders as a radial "wheel"
-  per branch (nodes arranged in a circle around a hub, prerequisite lines
-  colored by unlocked state) instead of a flat list, plus a paper-doll
-  equipment row and pointer-based drag-to-equip for gear cards (tap still
-  works too) - see `src/ui/InventoryScreen.ts`.
+  (`src/ui/QuestTracker.ts`) tracks every not-yet-complete `QuestLog`
+  quest live as its own card (there are two from the start now: tame a
+  dragon, open a crystal), and a tap-to-advance dialogue box
+  (`src/ui/DialogueBox.ts`) renders `DialogueSystem` lines - both just
+  thin UI over the existing systems, not new game logic. A short intro
+  dialogue plays on boot to exercise it.
+- **Richer inventory screen**: a Stable section (dragon name, origin
+  badge, loyalty bar for tamed dragons) sits above the skill tree, which
+  renders as a radial "wheel" per branch (nodes arranged in a circle
+  around a hub, prerequisite lines colored by unlocked state) instead of
+  a flat list, plus a paper-doll equipment row and pointer-based
+  drag-to-equip for gear cards (tap still works too) - see
+  `src/ui/InventoryScreen.ts`.
 - **Mounted riding has its own camera framing**: `CameraRig.mounted`
   pulls the camera back and up while riding, and the HUD shows a
   "Riding: `<name>`" badge - the ride mechanics themselves (drive the
@@ -166,8 +210,36 @@ which one is in use.
   there's only one activated ability to pick from so far.
 - **Taming a zone's dragon doesn't persist that specific dragon as
   "already tamed"** across reloads — the zone always spawns its feral
-  dragons fresh; only the `PlayerStable` record persists.
+  dragons fresh; only the `PlayerStable` record persists. (Crystals don't
+  have this gap - `openedCrystalIds` is real save state, so an opened
+  crystal stays gone.)
 - **Single zone, no zone transitions.**
+- **The generated-bestiary pipeline from the design doc isn't built**
+  (§2/§7/§10 there): this is still one dragon archetype (the whelp
+  `dragon.glb`), so there's no second rig to prove a modular
+  attachment/mask-texture/proportion system against yet, and no
+  KTX2/LOD/per-region-bundle pipeline (moot with one small model). A
+  fractured crystal's "dulled palette" is approximated with a flat
+  material-color multiply (`applyFracturedTint` in `Dragon.ts`), not the
+  doc's mask-texture tinting.
+- **Wariness/loyalty/origin-stat-ceiling don't touch live combat stats
+  yet**: `DragonLeveling.originStatMultiplier()` and dragon XP/leveling
+  (`PlayerStable.addXp`, itself already-unused scaffolding before this
+  round) aren't wired into a ridden/summoned Dragon's actual
+  maxHealth/attackDamage - the formula and the data exist, but nothing
+  re-applies them onto the live entity yet.
+- **Device tiers / signature complexity gating by archetype** (design doc
+  §4's progression-gating idea) isn't modeled - meaningless with only one
+  archetype; `Dragon.wariness` is the one difficulty axis that exists.
+- **No dragon ability-slot system** - "fewer ability slots" on a
+  fractured crystalborn dragon (design doc §3's table) isn't modeled,
+  since dragons (unlike the player Knight) have no ability-unlock system
+  at all in this codebase.
+- **The match step is rhythm-tap only** - the design doc's other
+  prototype option (drag-to-align a waveform, "Tuning") wasn't built; §4
+  frames this as a real open decision to prototype both and pick on a
+  phone, and this round picked rhythm on the doc's own "suits the
+  platform" reasoning rather than building and comparing both.
 - **Knight's animation set is a subset of the pack**: only the 9 clips
   the state graph actually needs are wired up (see `ANIMATION_CLIP_NAMES`
   in `Knight.ts`); the other 66 clips in `knight.glb` (ranged/spellcasting/
@@ -183,13 +255,27 @@ which one is in use.
    stubbed"); either get licensing confirmed from the project owner, or
    swap in a fuller-featured CC0 rigged dragon/wyvern and extend
    `Dragon.ts`'s state graph to match.
-2. **"Add more active abilities and turn the Ability Wheel into a real
+2. **"Wire dragon origin/loyalty into live combat stats"** — apply
+   `DragonLeveling.originStatMultiplier()` and the (currently unused)
+   XP/leveling system onto a ridden/summoned Dragon's actual
+   maxHealth/attackDamage, so the crystalborn/tamed asymmetry and a
+   dragon's level are more than stored numbers.
+3. **"Prototype the tuning (drag-to-align) match step and compare it to
+   rhythm-tap"** — the design doc frames this as a real open decision
+   (§4/§9.1) to test on a phone, not something to decide on paper; this
+   round shipped rhythm-tap only.
+4. **"Start the generated-bestiary pipeline with a second archetype"** —
+   once a second rigged CC0 (or otherwise cleared) creature asset is
+   available, use it to prove out the design doc's Layer 1-4 modular
+   attachment/palette/proportion system (§2) against something beyond a
+   single hard-coded model.
+5. **"Add more active abilities and turn the Ability Wheel into a real
    radial menu"** — give Blade/Ward/Bond a couple of tap-to-activate
    abilities beyond Riposte, and build the actual wheel UI to pick
    between them.
-3. **"Add dragon flight"** — a proper flight/altitude control scheme for
+6. **"Add dragon flight"** — a proper flight/altitude control scheme for
    mounted dragons instead of ground-only riding (probably wants a
    dedicated up/down input and a different camera mode).
-4. **"Add more zones and a zone transition system"** — a second zone
+7. **"Add more zones and a zone transition system"** — a second zone
    definition, a loading/transition flow in `ZoneLoader`, and travel
    points or a portal to move between them.

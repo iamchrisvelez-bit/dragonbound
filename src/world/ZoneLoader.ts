@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import type { CrystalDefinition } from './Crystal';
 
 export interface DragonSpawnDefinition {
   position: [number, number, number];
@@ -13,6 +14,8 @@ export interface ZoneDefinition {
   groundSize: number;
   playerSpawn: [number, number, number];
   dragonSpawns: DragonSpawnDefinition[];
+  /** Hand-placed starter crystals (System A) - see docs/design/crystal-and-taming-systems.md §3's "finite and hand-placed" distribution rule. */
+  crystalSpawns: CrystalDefinition[];
   /** Simple static rock props, mostly useful for exercising camera collision avoidance. */
   props: { position: [number, number, number]; scale: number }[];
 }
@@ -30,6 +33,19 @@ export const startingZone: ZoneDefinition = {
     // whole multi-zone encounter.
     { position: [11, 1, -10], displayName: 'Pack Wyrmling', archetype: 'ember-wyrm' },
     { position: [13.5, 1, -11.5], displayName: 'Pack Wyrmling', archetype: 'ember-wyrm' },
+  ],
+  crystalSpawns: [
+    // Close to spawn, in plain sight - the onboarding crystal (§3: "present
+    // three, let the player open one"; with a single archetype available
+    // this slice ships two rather than three, per the design doc's own
+    // implementation-notes scope-down).
+    { id: 'crystal-embercradle', position: [-3, 1, 3], dragonName: 'Embercradle Kin', archetype: 'ember-wyrm' },
+    // Farther out, past the pack - a visible long-term goal the player
+    // already knows the location of, per the same onboarding note. Kept at
+    // least INTERACT_RANGE + CRYSTAL_INTERACT_RANGE (7 units) from every
+    // dragon spawn so a weakened, wary pack wyrmling can never overlap a
+    // held mountToggle press with this crystal's own attune range.
+    { id: 'crystal-farwatch', position: [21, 1, -21], dragonName: 'Farwatch Kin', archetype: 'ember-wyrm' },
   ],
   props: [
     { position: [-5, 0, 1], scale: 1.4 },

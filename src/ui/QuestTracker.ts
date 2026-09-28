@@ -3,12 +3,14 @@ import { eventBus } from '../core/EventBus';
 
 let stylesInjected = false;
 
-/** Small always-on HUD panel tracking the current quest, backed directly by QuestLog. */
+/** Small always-on HUD panel tracking quests, backed directly by QuestLog.
+ * Shows every not-yet-complete quest as its own compact card (rather than
+ * just the first one in the log) - with two independent starter quests now
+ * live at once (tame a dragon / open a crystal), a single-quest tracker
+ * would hide whichever one wasn't first in the list. */
 export class QuestTracker {
   readonly root: HTMLDivElement;
-  private titleEl: HTMLDivElement;
-  private descEl: HTMLDivElement;
-  private statusEl: HTMLDivElement;
+  private list: HTMLDivElement;
 
   constructor(private questLog: QuestLog) {
     injectStyles();
@@ -18,36 +20,44 @@ export class QuestTracker {
 
     const header = document.createElement('div');
     header.className = 'db-quest-header';
-    header.textContent = 'Quest';
+    header.textContent = 'Quests';
     this.root.appendChild(header);
 
-    this.titleEl = document.createElement('div');
-    this.titleEl.className = 'db-quest-title';
-    this.root.appendChild(this.titleEl);
-
-    this.descEl = document.createElement('div');
-    this.descEl.className = 'db-quest-desc';
-    this.root.appendChild(this.descEl);
-
-    this.statusEl = document.createElement('div');
-    this.statusEl.className = 'db-quest-status';
-    this.root.appendChild(this.statusEl);
+    this.list = document.createElement('div');
+    this.list.className = 'db-quest-list';
+    this.root.appendChild(this.list);
 
     eventBus.on('quest:updated', () => this.refresh());
     this.refresh();
   }
 
   private refresh(): void {
-    const quest: Quest | undefined = this.questLog.list()[0];
-    if (!quest) {
-      this.root.hidden = true;
-      return;
-    }
-    this.root.hidden = false;
-    this.titleEl.textContent = quest.title;
-    this.descEl.textContent = quest.description;
-    this.statusEl.textContent = statusLabel(quest.status);
-    this.statusEl.className = `db-quest-status db-quest-status-${quest.status}`;
+    const quests = this.questLog.list().filter((q) => q.status !== 'complete');
+    this.list.innerHTML = '';
+    this.root.hidden = quests.length === 0;
+    for (const quest of quests) this.list.appendChild(this.renderQuest(quest));
+  }
+
+  private renderQuest(quest: Quest): HTMLElement {
+    const item = document.createElement('div');
+    item.className = 'db-quest-item';
+
+    const title = document.createElement('div');
+    title.className = 'db-quest-title';
+    title.textContent = quest.title;
+    item.appendChild(title);
+
+    const desc = document.createElement('div');
+    desc.className = 'db-quest-desc';
+    desc.textContent = quest.description;
+    item.appendChild(desc);
+
+    const status = document.createElement('div');
+    status.className = `db-quest-status db-quest-status-${quest.status}`;
+    status.textContent = statusLabel(quest.status);
+    item.appendChild(status);
+
+    return item;
   }
 }
 
@@ -88,6 +98,8 @@ function injectStyles(): void {
       opacity: 0.65;
       margin-bottom: 2px;
     }
+    .db-quest-list { display: flex; flex-direction: column; gap: 8px; }
+    .db-quest-item + .db-quest-item { padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.12); }
     .db-quest-title { font-size: 12px; font-weight: 600; color: #d4a853; }
     .db-quest-desc { font-size: 11px; opacity: 0.85; margin-top: 3px; line-height: 1.35; }
     .db-quest-status {

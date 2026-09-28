@@ -14,6 +14,12 @@ export const defaultQuests: Quest[] = [
     description: 'Weaken a wild dragon, then tame it before it recovers.',
     status: 'active',
   },
+  {
+    id: 'open-first-crystal',
+    title: 'The Patient Hand',
+    description: 'Find a sealed crystal and hold it until it evaporates - rushing it will fracture what emerges.',
+    status: 'active',
+  },
 ];
 
 /** Minimal quest log: a status map with an event on every change. No branching/objectives graph yet. */

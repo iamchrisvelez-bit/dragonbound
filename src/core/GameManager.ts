@@ -9,10 +9,12 @@ import { Dragon } from '../entities/Dragon';
 import { AggroManager } from '../entities/AggroManager';
 import { combatSystem } from '../combat/CombatSystem';
 import { TamingController, INTERACT_RANGE } from '../taming/TamingController';
+import { CrystalController, CRYSTAL_INTERACT_RANGE, type CrystalOutcome } from '../taming/CrystalController';
 import { playerStable } from '../taming/PlayerStable';
 import { progressionManager } from '../progression/ProgressionManager';
 import { rollGear } from '../progression/Gear';
 import { zoneLoader, startingZone } from '../world/ZoneLoader';
+import { Crystal } from '../world/Crystal';
 import { QuestLog, defaultQuests } from '../world/QuestLog';
 import { DialogueSystem } from '../world/DialogueSystem';
 import { TouchControls } from '../ui/TouchControls';
@@ -27,6 +29,7 @@ const INTRO_DIALOGUE = [
   { speaker: 'Wind over Ember Vale', text: 'The dragons here have not seen a knight in a generation.' },
   { speaker: 'Old Instinct', text: 'Weaken one, and it may yet be reasoned with - rather than slain.' },
   { speaker: 'Old Instinct', text: 'Get close. Tap Mount once it stops fighting back.' },
+  { speaker: 'Old Instinct', text: 'There is also a crystal near here, sealed and waiting. Hold it. Do not rush it.' },
 ];
 
 const AUTOSAVE_INTERVAL_SECONDS = 20;
@@ -36,6 +39,8 @@ const PACK_ALERT_RADIUS = 7;
 const MOUNTED_MOVE_SPEED = 6.5;
 /** How long a freshly tamed dragon needs before it'll let you ride it, unless Bond's "Saddle-Ready" is unlocked. */
 const MOUNT_SETTLE_DELAY_MS = 6000;
+/** A tamed dragon's loyalty (see DragonLeveling.originStatMultiplier) grows slowly while ridden - "grows with continued investment" per docs/design/crystal-and-taming-systems.md §5. */
+const LOYALTY_GAIN_PER_SECOND_RIDDEN = 0.08;
 
 export class GameManager {
   private scene = new THREE.Scene();
@@ -47,12 +52,14 @@ export class GameManager {
   private input = new InputManager();
   private saveManager = new SaveManager();
   private tamingController = new TamingController();
+  private crystalController = new CrystalController();
   private aggroManager = new AggroManager();
   private questLog = new QuestLog(defaultQuests);
   private dialogueSystem = new DialogueSystem();
 
   private knight!: Knight;
   private dragons: Dragon[] = [];
+  private crystals: Crystal[] = [];
   private collidables: THREE.Object3D[] = [];
 
   private touchControls!: TouchControls;
@@ -63,6 +70,7 @@ export class GameManager {
 
   private autosaveTimer = 0;
   private respawnTimer = 0;
+  private openedCrystalIds = new Set<string>();
 
   async init(container: HTMLElement): Promise<void> {
     await RAPIER.init();
@@ -78,6 +86,7 @@ export class GameManager {
     const save = (await this.saveManager.load()) ?? createDefaultSave();
     progressionManager.loadFromSave(save.progression);
     playerStable.load(save.stable);
+    this.openedCrystalIds = new Set(save.openedCrystalIds);
 
     const spawn = new THREE.Vector3(...save.player.position);
     this.knight = new Knight(this.world, spawn);
@@ -93,6 +102,16 @@ export class GameManager {
       const dragon = new Dragon(this.world, new THREE.Vector3(...spawnDef.position), spawnDef.displayName, spawnDef.archetype);
       this.dragons.push(dragon);
       this.scene.add(dragon.object3D);
+    }
+
+    // Crystals are "finite and hand-placed" (design doc §3) - one already
+    // opened this save doesn't respawn as a free reroll, so it's simply not
+    // spawned at all rather than shown inert.
+    for (const crystalDef of startingZone.crystalSpawns) {
+      if (this.openedCrystalIds.has(crystalDef.id)) continue;
+      const crystal = new Crystal(crystalDef);
+      this.crystals.push(crystal);
+      this.scene.add(crystal.object3D);
     }
 
     this.input.attach(this.renderer.domElement);
@@ -195,6 +214,45 @@ export class GameManager {
       void this.save();
       console.info(`[Dragonbound] Tamed dragon ${dragonId}! +1 skill point, Tamer's Gloves added.`);
     });
+
+    eventBus.on('crystal:evaporated', ({ dragonName }) => {
+      this.questLog.updateStatus('open-first-crystal', 'complete');
+      console.info(`[Dragonbound] Crystal evaporated - ${dragonName} joins the stable at full strength.`);
+    });
+
+    eventBus.on('crystal:fractured', ({ dragonName }) => {
+      this.questLog.updateStatus('open-first-crystal', 'complete');
+      console.info(`[Dragonbound] Crystal fractured - ${dragonName} joins the stable, diminished.`);
+    });
+  }
+
+  /** A crystal finished its hold (evaporated) or was released early
+   * (fractured) - either way it still yields a dragon (design doc §3),
+   * spawned live so it can actually be ridden through the existing mount
+   * flow rather than just a stat entry. */
+  private resolveCrystal(outcome: CrystalOutcome): void {
+    this.openedCrystalIds.add(outcome.crystalId);
+
+    const spawnPos = outcome.position.clone().add(new THREE.Vector3(1.4, 0, 0.4));
+    const dragon = new Dragon(this.world, spawnPos, outcome.dragonName, outcome.archetype, outcome.fractured);
+    dragon.ai.transition('tamed');
+    dragon.bondMeter.value = 100; // "Bond: Immediate, unconditional" - design doc §5, unlike a tamed dragon's earned bond
+    dragon.tamedAt = Date.now();
+    this.dragons.push(dragon);
+    this.scene.add(dragon.object3D);
+
+    playerStable.add({
+      id: dragon.id,
+      name: dragon.displayName,
+      archetype: dragon.archetype,
+      level: 1,
+      xp: 0,
+      tamedAt: Date.now(),
+      origin: outcome.fractured ? 'crystalborn-fractured' : 'crystalborn-whole',
+      loyalty: 0, // not this record's axis - see DragonLeveling.originStatMultiplier
+    });
+
+    void this.save();
   }
 
   private tick = (): void => {
@@ -214,7 +272,7 @@ export class GameManager {
     this.knight.updateAnimationMixer(dt);
 
     const mountedDragon = this.mountedDragon();
-    if (mountedDragon) this.updateMountedDragon(mountedDragon);
+    if (mountedDragon) this.updateMountedDragon(dt, mountedDragon);
 
     this.aggroManager.update(this.dragons, this.knight.object3D.position, PACK_ALERT_RADIUS);
     for (const dragon of this.dragons) {
@@ -223,6 +281,15 @@ export class GameManager {
     }
     for (const dragon of this.dragons) dragon.updateAnimationMixer(dt);
     this.tamingController.update(dt, this.input, this.knight, this.dragons);
+
+    for (const crystal of this.crystals) crystal.update(dt);
+    const crystalOutcome = this.crystalController.update(dt, this.input, this.knight, this.crystals);
+    if (crystalOutcome) this.resolveCrystal(crystalOutcome);
+    this.crystals = this.crystals.filter((c) => {
+      if (!c.outroFinished) return true;
+      this.scene.remove(c.object3D);
+      return false;
+    });
 
     this.world.step();
 
@@ -297,7 +364,7 @@ export class GameManager {
   /** Drives a ridden dragon straight from input, the same camera-relative
    * way Knight.handleInput() drives the player (see that method's identical
    * moveDir math) - Dragon.updateAI() is skipped for it (see riddenBy). */
-  private updateMountedDragon(dragon: Dragon): void {
+  private updateMountedDragon(dt: number, dragon: Dragon): void {
     const move = this.input.getMoveVector();
     const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraRig.yaw);
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(yawQuat);
@@ -308,6 +375,10 @@ export class GameManager {
       moveDir.normalize();
       const yaw = Math.atan2(-moveDir.x, -moveDir.z);
       dragon.applyExternalMovement(moveDir.multiplyScalar(MOUNTED_MOVE_SPEED), yaw);
+      // "Grows with continued investment" (design doc §5) - riding a tamed
+      // dragon slowly builds its loyalty. No-ops for crystalborn records
+      // (see PlayerStable.adjustLoyalty), which don't have this axis.
+      playerStable.adjustLoyalty(dragon.id, dt * LOYALTY_GAIN_PER_SECOND_RIDDEN);
     } else {
       dragon.applyExternalMovement(new THREE.Vector3(0, 0, 0), dragon.facingYaw);
     }
@@ -316,24 +387,50 @@ export class GameManager {
   private updateHud(): void {
     let prompt: string | null = null;
     let bond: number | null = null;
+    let resonance: number | null = null;
 
-    if (this.tamingController.isActive) {
-      prompt = 'Tap Attack on the beat to bond!';
+    if (this.crystalController.isActive) {
+      resonance = this.crystalController.progress * 100;
+      prompt = 'Hold steady... do not let go.';
+    } else if (this.tamingController.isActive) {
       bond = this.tamingController.currentDragon?.bondMeter.value ?? 0;
+      switch (this.tamingController.currentMinigame?.phase) {
+        case 'reading':
+          prompt = 'Reading its resonance...';
+          break;
+        case 'matching':
+          prompt = 'Tap Attack on the beat!';
+          break;
+        case 'holding':
+          prompt = 'Hold Mount to steady the bond!';
+          break;
+      }
     } else if (this.knight.isMounted) {
       prompt = 'Tap Mount to dismount';
     } else {
       const nearWary = this.dragons.find(
-        (d) => d.ai.state === 'wary' && d.object3D.position.distanceTo(this.knight.object3D.position) <= INTERACT_RANGE,
+        (d) => d.ai.state === 'wary' && !d.isSpooked && d.object3D.position.distanceTo(this.knight.object3D.position) <= INTERACT_RANGE,
       );
+      const nearSpooked =
+        !nearWary &&
+        this.dragons.find(
+          (d) => d.ai.state === 'wary' && d.isSpooked && d.object3D.position.distanceTo(this.knight.object3D.position) <= INTERACT_RANGE,
+        );
       const nearTamed = this.dragons.find(
         (d) =>
           d.ai.state === 'tamed' &&
           !d.riddenBy &&
           d.object3D.position.distanceTo(this.knight.object3D.position) <= INTERACT_RANGE,
       );
-      if (nearWary) {
+      const nearCrystal = this.crystals.find(
+        (c) => !c.opened && c.object3D.position.distanceTo(this.knight.object3D.position) <= CRYSTAL_INTERACT_RANGE,
+      );
+      if (nearCrystal) {
+        prompt = 'Hold Mount to attune...';
+      } else if (nearWary) {
         prompt = 'Tap Mount to begin taming';
+      } else if (nearSpooked) {
+        prompt = "It's too spooked to approach yet.";
       } else if (nearTamed) {
         const settled = this.knight.abilities.has('instant-mount') || Date.now() - nearTamed.tamedAt >= MOUNT_SETTLE_DELAY_MS;
         prompt = settled ? 'Tap Mount to ride' : 'Dragon is still settling...';
@@ -346,6 +443,7 @@ export class GameManager {
       stamina: this.knight.stamina.current,
       maxStamina: this.knight.stamina.max,
       bond,
+      resonance,
       prompt,
       riding: this.knight.isMounted ? (this.mountedDragon()?.displayName ?? null) : null,
       minimapEntities: [
@@ -381,6 +479,7 @@ export class GameManager {
         xp: 0,
       },
       stable: playerStable.toSaveData(),
+      openedCrystalIds: Array.from(this.openedCrystalIds),
       progression: progressionManager.toSaveData(),
     };
   }
@@ -395,7 +494,9 @@ export class GameManager {
     return {
       knight: this.knight,
       dragons: this.dragons,
+      crystals: this.crystals,
       tamingActive: this.tamingController.isActive,
+      crystalActive: this.crystalController.isActive,
     };
   }
 }

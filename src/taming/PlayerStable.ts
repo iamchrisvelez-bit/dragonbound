@@ -32,6 +32,13 @@ export class PlayerStable {
     if (result.leveledUp) eventBus.emit('progression:dragon-leveled', { dragonId, level: result.level });
   }
 
+  /** Only meaningful for `origin: 'tamed'` dragons - see docs/design/crystal-and-taming-systems.md §5. No-op for crystalborn records. */
+  adjustLoyalty(dragonId: string, delta: number): void {
+    const dragon = this.dragons.find((d) => d.id === dragonId);
+    if (!dragon || dragon.origin !== 'tamed') return;
+    dragon.loyalty = Math.max(0, Math.min(100, dragon.loyalty + delta));
+  }
+
   toSaveData(): SavedStabledDragon[] {
     return this.dragons.map((d) => ({ ...d }));
   }
