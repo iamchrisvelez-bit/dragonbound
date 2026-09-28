@@ -123,6 +123,7 @@ export class GameManager {
       const dragon = new Dragon(this.world, new THREE.Vector3(...spawnDef.position), spawnDef.displayName, spawnDef.archetype);
       this.dragons.push(dragon);
       this.scene.add(dragon.object3D);
+      this.scene.add(dragon.telegraph.mesh);
     }
 
     // Crystals are "finite and hand-placed" (design doc §3) - one already
@@ -296,6 +297,7 @@ export class GameManager {
       const dragon = this.dragons.find((d) => d.id === dragonId);
       if (!dragon) return;
       this.scene.remove(dragon.object3D);
+      this.scene.remove(dragon.telegraph.mesh);
       if (dragon.rigidBody) this.world.removeRigidBody(dragon.rigidBody);
       combatSystem.unregisterHurtbox(dragon.id);
       this.dragons = this.dragons.filter((d) => d.id !== dragonId);
@@ -362,6 +364,7 @@ export class GameManager {
     dragon.tamedAt = Date.now();
     this.dragons.push(dragon);
     this.scene.add(dragon.object3D);
+    this.scene.add(dragon.telegraph.mesh);
 
     playerStable.add({
       id: dragon.id,

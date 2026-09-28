@@ -8,6 +8,7 @@ import { DragonAI } from '../taming/DragonAI';
 import { BondMeter } from '../taming/BondMeter';
 import { MAX_ENGAGE_RANGE, eligibleAttacks, type DragonAttackDef } from '../combat/DragonAttacks';
 import { sfx } from '../core/SfxManager';
+import { GroundTelegraph } from '../combat/GroundTelegraph';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const APPROACH_SPEED = 2.6;
@@ -114,6 +115,9 @@ export class Dragon extends Entity {
   /** Knight id currently riding this dragon, if any. While set, updateAI() no-ops - GameManager drives movement directly. */
   riddenBy: string | null = null;
 
+  /** Ground danger-zone ring shown during an attack's windup - GameManager adds/removes its mesh to the scene alongside object3D. */
+  readonly telegraph = new GroundTelegraph();
+
   /** Failed-taming-attempt counter (see docs/design/crystal-and-taming-systems.md §4). Tightens ResonanceMinigame's next signature. Session-only, like the dragon itself. */
   wariness = 0;
   private spookedUntil = 0;
@@ -190,6 +194,10 @@ export class Dragon extends Entity {
   update(_dt: number): void {}
 
   updateAI(dt: number, playerPosition: THREE.Vector3, isAggro: boolean): void {
+    // Default to hidden every frame - only the 'windup' case below re-shows
+    // it, so any path that leaves windup (state change, phase transition,
+    // early return) correctly clears it without needing its own cleanup.
+    this.telegraph.hide();
     this.ai.evaluateHealth(this.alive ? this.health / this.maxHealth : 0, this.tameThresholdRatio);
 
     if (this.riddenBy) return; // GameManager drives velocity/facing directly while ridden
@@ -246,7 +254,20 @@ export class Dragon extends Entity {
       case 'windup': {
         this.rigidBody?.setLinvel({ x: 0, y: 0, z: 0 }, true);
         this.faceDirection(dirToPlayer);
-        this.setTelegraphIntensity(1 - this.phaseTimer / this.currentAttack!.windup);
+        const pattern = this.currentAttack!;
+        const windupProgress = 1 - this.phaseTimer / pattern.windup;
+        this.setTelegraphIntensity(windupProgress);
+        // tailSweep is an all-around hit centered on the dragon itself
+        // (no forward offset, see beginActive); lunge/breath both converge
+        // on wherever the player currently stands - the true target only
+        // locks in the instant windup ends (see beginActive's lunge/breath
+        // cases), so this tracks their live position as a best-effort
+        // "if it lands right now, it lands here" preview rather than a
+        // stale one painted at windup's start.
+        const telegraphCenter = pattern.type === 'tailSweep' ? this.object3D.position : playerPosition;
+        const telegraphRadius = pattern.type === 'tailSweep' ? pattern.radius : Math.max(pattern.radius * 1.3, 1.2);
+        this.telegraph.show(telegraphCenter, telegraphRadius, pattern.telegraphColor);
+        this.telegraph.update(performance.now() / 1000, windupProgress);
         this.phaseTimer -= dt;
         if (this.phaseTimer <= 0) this.beginActive(dirToPlayer, playerPosition);
         break;
