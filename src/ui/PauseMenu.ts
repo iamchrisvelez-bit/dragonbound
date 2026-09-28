@@ -200,6 +200,7 @@ function injectStyles(): void {
       justify-content: center;
       padding: 24px;
       background: rgba(6, 4, 8, 0.72);
+      -webkit-backdrop-filter: blur(3px); /* Safari/iOS still wants the prefix */
       backdrop-filter: blur(3px);
       font-family: system-ui, sans-serif;
       color: #f2e9d8;
@@ -208,6 +209,7 @@ function injectStyles(): void {
     .db-pause-panel {
       width: min(340px, 100%);
       max-height: 86vh;
+      max-height: 86dvh; /* see HUD.ts's .db-prompt comment on vh -> dvh progressive enhancement */
       overflow-y: auto;
       display: flex;
       flex-direction: column;

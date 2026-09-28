@@ -81,6 +81,22 @@ monsters in that pack: Bat, Dragon, Skeleton, Slime).
 - Used for the "Feral Drake" pair in `ZoneLoader.ts`'s starting zone
   (`archetype: 'quaternius-drake'`), distinct from the solo "Feral
   Wyrmling" which still uses `dragon.glb`.
+- **This specific vendored copy's materials carry no color at all**:
+  parsing the .glb's JSON chunk directly shows all 5 materials (`Main`,
+  `Belly`, `Claws`, `Wings`, `Eyes`) with an empty `pbrMetallicRoughness: {}`
+  - no `baseColorFactor`, no texture reference, and the meshes have no
+  vertex-color attribute either (`extensionsUsed`, `images`, `textures`,
+  and `samplers` are all absent/empty in the file). This is a defect in
+  this particular vendored copy, not a bug in how this project loads it -
+  rendered as-is, every part comes out flat white, which under a strong
+  directional light reads as a harsh light/dark checkerboard rather than a
+  colored creature. `QUATERNIUS_DRAKE_CONFIG.materialColorOverrides` in
+  `Dragon.ts` hand-assigns a stony gray-slate palette by material name
+  (applied in `loadRealModel()` via `applyMaterialColorOverrides()`) as a
+  practical fix, rather than the original artist's actual intended colors
+  (unrecoverable from this file, and quaternius.com/itch.io/Sketchfab/
+  OpenGameArt are all blocked by this sandbox's network egress policy, so
+  a from-scratch re-source wasn't attempted this round).
 
 ## `audio/music/theme-1.ogg`, `theme-2.ogg`, `theme-6.ogg`
 

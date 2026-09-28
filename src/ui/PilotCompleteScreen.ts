@@ -72,6 +72,7 @@ function injectStyles(): void {
       justify-content: center;
       padding: 24px;
       background: rgba(6, 4, 8, 0.78);
+      -webkit-backdrop-filter: blur(3px); /* Safari/iOS still wants the prefix */
       backdrop-filter: blur(3px);
       font-family: system-ui, sans-serif;
       color: #f2e9d8;

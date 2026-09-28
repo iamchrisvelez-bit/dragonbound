@@ -63,6 +63,8 @@ function injectStyles(): void {
       position: fixed;
       left: 50%;
       bottom: max(190px, calc(30vh));
+      /* See HUD.ts's .db-prompt comment - dvh progressively replaces vh so this doesn't drift as Safari's address bar shows/hides. */
+      bottom: max(190px, calc(30dvh));
       transform: translateX(-50%);
       width: min(340px, 86vw);
       z-index: 30;

@@ -228,6 +228,11 @@ function injectStyles(): void {
       position: absolute;
       left: 50%;
       bottom: max(96px, calc(26vh));
+      /* dvh tracks the *actual* visible viewport as Safari's address bar
+         shows/hides, instead of vh's fixed largest-viewport value - browsers
+         that don't understand dvh just ignore this line and keep the vh
+         one above, so this is pure progressive enhancement. */
+      bottom: max(96px, calc(26dvh));
       transform: translateX(-50%);
       background: rgba(11, 15, 26, 0.7);
       border: 1px solid rgba(212, 168, 83, 0.5);

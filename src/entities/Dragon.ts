@@ -52,6 +52,12 @@ interface DragonModelConfig {
   visualScale: number;
   /** Height above object3D's origin to anchor the floating HP bar (WorldHealthBars) - roughly "just above the head" for this archetype's scaled geometry. */
   barAnchorHeight: number;
+  /** Material name -> hex color, applied on load. Only needed for archetypes
+   * whose source .glb ships materials with no baseColorFactor/texture at
+   * all (see EMBER_WYRM_CONFIG's sibling below) - without this they render
+   * as flat untinted white, which under strong directional lighting reads
+   * as a harsh light/dark checkerboard rather than a colored creature. */
+  materialColorOverrides?: Record<string, number>;
 }
 
 const EMBER_WYRM_CONFIG: DragonModelConfig = {
@@ -88,6 +94,20 @@ const QUATERNIUS_DRAKE_CONFIG: DragonModelConfig = {
   oneShotClips: ['Dragon_Hit'],
   visualScale: 0.6, // this asset's native geometry is ~3.85 units tall (a full adult, not a whelp) - scaled down to read as bigger-but-comparable to the knight, not a tower
   barAnchorHeight: 2.6,
+  // This specific vendored copy's materials are all empty
+  // (`pbrMetallicRoughness: {}` - no baseColorFactor, no texture, no
+  // vertex colors - confirmed by parsing the .glb's JSON chunk directly),
+  // so every part renders flat white and picks up whatever a directional
+  // light and its own shadowed facets do to it - a stony gray-slate
+  // palette that's distinct from the ember-wyrm's green, with amber eyes
+  // matching this game's existing eye-glow accent color everywhere else.
+  materialColorOverrides: {
+    Main: 0x6b7a8f,
+    Belly: 0xcfc3a8,
+    Claws: 0x2b2620,
+    Wings: 0x4a4458,
+    Eyes: 0xd4a853,
+  },
 };
 
 const DRAGON_MODEL_CONFIGS: Record<string, DragonModelConfig> = {
@@ -536,6 +556,7 @@ export class Dragon extends Entity {
     // radius above are untouched, so hit detection isn't affected.
     this.visual.scale.setScalar(config.visualScale);
     this.eyeMaterials = []; // real assets telegraph via their own animations, not the placeholder's eye-flash hack
+    if (config.materialColorOverrides) applyMaterialColorOverrides(this.visual, config.materialColorOverrides);
     if (this.fractured) applyFracturedTint(this.visual);
     this.object3D.add(this.visual);
 
@@ -547,6 +568,27 @@ export class Dragon extends Entity {
       else console.warn(`[Dragon] animation clip "${name}" not found in ${config.modelName}.glb`);
     }
   }
+}
+
+/** Sets a flat color on every mesh whose material name matches a key in
+ * `overrides` - see DragonModelConfig.materialColorOverrides for why this
+ * exists (a specific vendored asset shipping with empty/textureless
+ * materials, confirmed by inspecting its .glb JSON directly, not a loader
+ * bug on this project's side). */
+function applyMaterialColorOverrides(visual: THREE.Object3D, overrides: Record<string, number>): void {
+  const seen = new Set<THREE.Material>();
+  visual.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of materials) {
+      if (seen.has(mat) || !(mat instanceof THREE.MeshStandardMaterial)) continue;
+      const hex = overrides[mat.name];
+      if (hex === undefined) continue;
+      seen.add(mat);
+      mat.color.setHex(hex);
+    }
+  });
 }
 
 /** The "dulled, visibly lesser" palette a fractured crystal (§3) leaves on
