@@ -102,6 +102,10 @@ export class Knight extends Entity {
   private currentAnimName: string | null = null;
   private pendingAttackAnim: { name: string; duration: number } | null = null;
 
+  /** Resolves once the real model swap has finished (or the placeholder
+   * fallback kicked in) - see StartScreen's loading gate in GameManager. */
+  readonly modelReady: Promise<void>;
+
   constructor(world: RAPIER.World, startPosition: THREE.Vector3) {
     super('knight', BASE_MAX_HEALTH);
 
@@ -123,7 +127,7 @@ export class Knight extends Entity {
     this.applyProgressionModifiers();
     eventBus.on('progression:skill-unlocked', () => this.applyProgressionModifiers());
     eventBus.on('progression:gear-equipped', () => this.applyProgressionModifiers());
-    void this.loadRealModel();
+    this.modelReady = this.loadRealModel();
   }
 
   /** Recomputes max health/stamina, stamina regen rate, attack damage, and bond

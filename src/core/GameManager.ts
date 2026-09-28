@@ -26,6 +26,7 @@ import { DeathScreen } from '../ui/DeathScreen';
 import { DamageVignette } from '../ui/DamageVignette';
 import { StartScreen } from '../ui/StartScreen';
 import { PauseMenu } from '../ui/PauseMenu';
+import { PilotCompleteScreen } from '../ui/PilotCompleteScreen';
 import { sfx } from './SfxManager';
 import { InventoryScreen } from '../ui/InventoryScreen';
 import { QuestTracker } from '../ui/QuestTracker';
@@ -81,6 +82,8 @@ export class GameManager {
   private questTracker!: QuestTracker;
   private dialogueBox!: DialogueBox;
   private pauseMenu!: PauseMenu;
+  private pilotCompleteScreen!: PilotCompleteScreen;
+  private pilotCompleteShown = false;
 
   private autosaveTimer = 0;
   private respawnTimer = 0;
@@ -167,6 +170,7 @@ export class GameManager {
       onRestart: () => this.restartAdventure(),
       onClose: () => void this.save(),
     });
+    this.pilotCompleteScreen = new PilotCompleteScreen(() => {});
     this.buildMenuButton();
     this.buildAudioToggle();
 
@@ -179,8 +183,13 @@ export class GameManager {
 
     // Intro dialogue waits behind the title card rather than firing the
     // instant the canvas is ready - the tap to begin also doubles as the
-    // real user gesture AudioManager needs to unlock autoplay.
-    new StartScreen(() => this.dialogueSystem.start(INTRO_DIALOGUE));
+    // real user gesture AudioManager needs to unlock autoplay. The card
+    // itself waits on every entity's real-model load (capped - see
+    // StartScreen) so gameplay doesn't start on visible placeholder meshes.
+    const assetsReady = Promise.all([this.knight.modelReady, ...this.dragons.map((d) => d.modelReady)]).then(
+      () => undefined,
+    );
+    new StartScreen(assetsReady, () => this.dialogueSystem.start(INTRO_DIALOGUE));
   }
 
   private setupRenderer(container: HTMLElement): void {
@@ -305,6 +314,14 @@ export class GameManager {
 
     eventBus.on('player:died', () => {
       this.respawnTimer = RESPAWN_DELAY_SECONDS;
+    });
+
+    eventBus.on('quest:updated', () => {
+      if (this.pilotCompleteShown) return;
+      const allComplete = this.questLog.list().every((q) => q.status === 'complete');
+      if (!allComplete) return;
+      this.pilotCompleteShown = true;
+      this.pilotCompleteScreen.show();
     });
 
     // Combat "juice": floating damage numbers (the numeric half of the

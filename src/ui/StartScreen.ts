@@ -2,6 +2,11 @@ import { sfx } from '../core/SfxManager';
 
 let stylesInjected = false;
 
+/** Asset loads are capped at this long before the button appears anyway -
+ * knight.glb is ~3.5MB (the single largest asset in the game), so a slow
+ * connection shouldn't be able to strand a player on a title card forever. */
+const MAX_WAIT_MS = 8000;
+
 /**
  * Full-screen title card shown before the intro dialogue/gameplay starts -
  * previously the game dropped straight into the first dialogue line the
@@ -9,11 +14,18 @@ let stylesInjected = false;
  * deliberate opening. Also doubles as the real "first user gesture" for
  * unlocking autoplay audio (see AudioManager/GameManager.buildAudioToggle),
  * so background music can reliably start the moment the player taps in.
+ *
+ * The "Begin" button is gated behind `assetsReady` (Knight/Dragon's
+ * modelReady promises) rather than shown immediately - knight.glb alone is
+ * ~3.5MB, and starting gameplay before it's loaded means the placeholder
+ * capsule visibly popping to the real model mid-play, which reads as a bug
+ * rather than normal loading. Capped at MAX_WAIT_MS so a slow connection
+ * degrades to "start with placeholders" rather than a stuck title card.
  */
 export class StartScreen {
   private root: HTMLDivElement;
 
-  constructor(onBegin: () => void) {
+  constructor(assetsReady: Promise<void>, onBegin: () => void) {
     injectStyles();
     this.root = document.createElement('div');
     this.root.className = 'db-start-screen';
@@ -30,14 +42,26 @@ export class StartScreen {
     this.root.appendChild(subtitle);
 
     const button = document.createElement('button');
-    button.className = 'db-start-button';
+    button.className = 'db-start-button db-hidden';
     button.textContent = 'Begin Your Journey';
     this.root.appendChild(button);
 
+    const loading = document.createElement('div');
+    loading.className = 'db-start-loading';
+    loading.textContent = 'Loading the vale...';
+    this.root.appendChild(loading);
+
     const hint = document.createElement('div');
-    hint.className = 'db-start-hint';
+    hint.className = 'db-start-hint db-hidden';
     hint.textContent = 'Tame or slay - the choice is yours.';
     this.root.appendChild(hint);
+
+    const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, MAX_WAIT_MS));
+    void Promise.race([assetsReady, timeout]).then(() => {
+      loading.classList.add('db-hidden');
+      button.classList.remove('db-hidden');
+      hint.classList.remove('db-hidden');
+    });
 
     const begin = () => {
       sfx.play('ui-tap');
@@ -112,6 +136,18 @@ function injectStyles(): void {
       opacity: 0.5;
       letter-spacing: 0.02em;
     }
+    .db-start-loading {
+      margin-top: 14px;
+      font-size: 12px;
+      opacity: 0.65;
+      letter-spacing: 0.05em;
+      animation: db-start-loading-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes db-start-loading-pulse {
+      0%, 100% { opacity: 0.35; }
+      50% { opacity: 0.75; }
+    }
+    .db-hidden { display: none !important; }
   `;
   document.head.appendChild(style);
 }

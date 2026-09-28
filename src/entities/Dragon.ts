@@ -140,6 +140,10 @@ export class Dragon extends Entity {
   private hitFlareUntil = 0;
   private readonly modelConfig: DragonModelConfig;
 
+  /** Resolves once the real model swap has finished (or the placeholder
+   * fallback kicked in) - see StartScreen's loading gate in GameManager. */
+  readonly modelReady: Promise<void>;
+
   constructor(
     world: RAPIER.World,
     startPosition: THREE.Vector3,
@@ -186,7 +190,7 @@ export class Dragon extends Entity {
       if (to === 'wary') eventBus.emit('dragon:tamable', { dragonId: this.id });
     });
 
-    void this.loadRealModel();
+    this.modelReady = this.loadRealModel();
   }
 
   /** Satisfies Entity's abstract update(); real per-frame logic needs the
