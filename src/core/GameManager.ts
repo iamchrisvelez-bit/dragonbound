@@ -23,6 +23,8 @@ import { HUD } from '../ui/HUD';
 import { WorldHealthBars } from '../ui/WorldHealthBars';
 import { FloatingText } from '../ui/FloatingText';
 import { DeathScreen } from '../ui/DeathScreen';
+import { DamageVignette } from '../ui/DamageVignette';
+import { StartScreen } from '../ui/StartScreen';
 import { InventoryScreen } from '../ui/InventoryScreen';
 import { QuestTracker } from '../ui/QuestTracker';
 import { DialogueBox } from '../ui/DialogueBox';
@@ -72,6 +74,7 @@ export class GameManager {
   private worldHealthBars!: WorldHealthBars;
   private floatingText!: FloatingText;
   private deathScreen!: DeathScreen;
+  private damageVignette!: DamageVignette;
   private inventoryScreen!: InventoryScreen;
   private questTracker!: QuestTracker;
   private dialogueBox!: DialogueBox;
@@ -128,6 +131,7 @@ export class GameManager {
     this.worldHealthBars = new WorldHealthBars();
     this.floatingText = new FloatingText();
     this.deathScreen = new DeathScreen();
+    this.damageVignette = new DamageVignette();
     this.inventoryScreen = new InventoryScreen();
     this.questTracker = new QuestTracker(this.questLog);
     this.dialogueBox = new DialogueBox(this.dialogueSystem);
@@ -136,11 +140,15 @@ export class GameManager {
 
     this.wireEvents();
     eventBus.emit('save:loaded', {});
-    this.dialogueSystem.start(INTRO_DIALOGUE);
 
     window.addEventListener('resize', this.onResize);
 
     this.renderer.setAnimationLoop(this.tick);
+
+    // Intro dialogue waits behind the title card rather than firing the
+    // instant the canvas is ready - the tap to begin also doubles as the
+    // real user gesture AudioManager needs to unlock autoplay.
+    new StartScreen(() => this.dialogueSystem.start(INTRO_DIALOGUE));
   }
 
   private setupRenderer(container: HTMLElement): void {
@@ -277,6 +285,7 @@ export class GameManager {
       const pos = this.knight.object3D.position.clone().add(new THREE.Vector3(0, 1.9, 0));
       this.floatingText.spawn(pos, `-${Math.round(amount)}`, 'player-damage');
       this.cameraRig.addShake(0.4);
+      this.damageVignette.flash();
     });
 
     eventBus.on('taming:success', ({ dragonId }) => {
