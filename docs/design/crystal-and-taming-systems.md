@@ -302,18 +302,23 @@ maintained status — this section is a one-time snapshot of the mapping from do
   `SavedStabledDragon`, with a stat-ceiling multiplier formula in `DragonLeveling.ts`.
 
 **Explicitly not built (needs new art, not just code):**
-- The Layer 1-4 bestiary generator (§2) — multiple rigged archetypes, modular socketed attachments,
-  mask-texture tinting, proportion offsets. This game still has exactly one dragon archetype (the
-  user-provided `dragon.glb` whelp model, animation-limited to Idle/Walk/Flap/Roar). Building the
-  generator pipeline without a second archetype to prove it against would be speculative work; it's
-  flagged as a follow-up once more rigged CC0 (or otherwise cleared) creature assets are available.
-  Crystalborn palette variation is approximated today with a flat material-color multiply on
+- The Layer 1-4 bestiary generator (§2) — multiple rigged archetypes sharing one modular
+  attachment/socket system, mask-texture tinting, proportion offsets. This game now has *two* dragon
+  archetypes (`ember-wyrm`, the user-provided `dragon.glb` whelp; `quaternius-drake`, Quaternius's
+  CC0-verified "Animated Monster Pack" Dragon, sourced via a GitHub-hosted mirror since
+  quaternius.com itself is blocked in this sandbox — see `public/assets/CREDITS.md`), but they're
+  two entirely separate, independently rigged/animated assets wired in by hand
+  (`DRAGON_MODEL_CONFIGS` in `src/entities/Dragon.ts`), not one shared skeleton driving the doc's
+  modular system. Building the actual generator pipeline (shared socket naming, mask-texture
+  palettes, proportion offsets across a *common* rig) is still real, undone work — this just gives
+  it two real assets to eventually prove itself against, rather than needing a second one sourced
+  first. Crystalborn palette variation is still approximated with a flat material-color multiply on
   fracture, not the described mask-texture system.
-- KTX2/Basis texture compression, LOD levels, per-region asset bundling (§7) — this is still a
-  single-zone vertical slice with one dragon model; these are real concerns once the game has enough
+- KTX2/Basis texture compression, LOD levels, per-region asset bundling (§7) — still a single-zone
+  vertical slice with two small dragon models; these are real concerns once the game has enough
   assets for payload size to matter.
-- Device tiers gating signature complexity by archetype (§4's progression gating) — meaningless with
-  only one archetype today; `wariness`-based difficulty scaling is the one axis of difficulty that
+- Device tiers gating signature complexity by archetype (§4's progression gating) — not modeled yet;
+  `wariness`-based difficulty scaling is the one axis of difficulty that
   exists right now.
 - Dragon ability slots as part of the crystalborn/tamed asymmetry — dragons (as opposed to the
   player Knight) have no ability-unlock system in this codebase at all yet, so "fewer ability slots"

@@ -15,6 +15,7 @@ public/assets/models/*
 !public/assets/models/.gitkeep
 !public/assets/models/knight.glb
 !public/assets/models/dragon.glb
+!public/assets/models/dragon-quaternius.glb
 public/assets/animations/*
 !public/assets/animations/.gitkeep
 public/assets/textures/*

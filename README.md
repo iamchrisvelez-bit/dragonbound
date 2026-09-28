@@ -123,7 +123,9 @@ not a wide desktop window shrunk down:
   gives dragons individual detection ranges plus pack behavior: aggroing
   one wakes any feral packmate within its alert radius, even if the
   player hasn't entered that packmate's own range yet (see the two
-  "Pack Wyrmling" spawns in `ZoneLoader.ts`).
+  "Feral Drake" spawns in `ZoneLoader.ts`). Combat logic (attacks, aggro,
+  taming) is entirely archetype-agnostic - only the visual/animation layer
+  differs per archetype (see the next bullet).
 - **Weaken the dragon**: landing hits reduces its HP; Rapier physics
   drives both entities' movement/collision.
 - **Tame it (System B - "crystal tech")**: once the dragon's HP drops
@@ -195,18 +197,39 @@ not a wide desktop window shrunk down:
   crossfading between clips and speeding up the ~1s stock attack/dodge
   clips to match the game's much snappier combat timing rather than
   letting them run long and get cut off.
-- **A real rigged dragon**: `public/assets/models/dragon.glb` (provided
-  directly by the project owner - see `public/assets/CREDITS.md` for the
-  still-unconfirmed license/source caveat) replaces the procedural
-  placeholder. It ships only 4 clips (Idle, Walk, Flap, Roar), so
-  `Dragon.ts`'s state graph reuses Roar as the attack windup telegraph
-  and Flap as the active-attack pose (sped up per-attack via the same
-  `timeScale` trick `Knight.ts` uses), alongside real Idle/Walk for
-  everything else - crossfaded the same way as the knight. The model's
-  own geometry is a genuinely tiny "whelp" size, so it's rendered at a
-  fixed 2.2x visual-only scale (`DRAGON_VISUAL_SCALE` in `Dragon.ts`) to
-  stay legible at normal third-person combat distance; the Rapier
-  collider and hurtbox radius are untouched by that scale-up.
+- **Two real rigged dragon archetypes**: `Dragon.ts`'s `DRAGON_MODEL_CONFIGS`
+  maps each `archetype` string to its own model file + animation-clip
+  vocabulary, since the two dragon assets in this game don't share a clip
+  naming convention (they're from different sources, unlike the knight's
+  single asset):
+  - `public/assets/models/dragon.glb` (`ember-wyrm`, the solo "Feral
+    Wyrmling") - provided directly by the project owner; see
+    `public/assets/CREDITS.md` for the still-unconfirmed license/source
+    caveat. Ships 4 clips (Idle, Walk, Flap, Roar); the state graph
+    reuses Roar as the attack windup telegraph and Flap as the
+    active-attack pose (sped up per-attack via the same `timeScale`
+    trick `Knight.ts` uses). Native geometry is a genuinely tiny "whelp"
+    size, rendered at a fixed 2.2x visual-only scale to stay legible at
+    combat distance.
+  - `public/assets/models/dragon-quaternius.glb` (`quaternius-drake`,
+    the "Feral Drake" pair) - Quaternius's "Animated Monster Pack"
+    Dragon, **verified CC0 1.0 Universal** (see `public/assets/CREDITS.md`
+    for the full sourcing/corroboration trail - quaternius.com itself is
+    blocked in this sandbox, so it was retrieved from a GitHub repo that
+    vendors the pack with Quaternius's own `License.txt`, independently
+    corroborated across several other unrelated repos' own asset audits).
+    Ships only 2 clips (`Dragon_Flying`, `Dragon_Hit`) - no idle/walk/death
+    and no dedicated attack clip, so every non-hit-reaction state (idle,
+    chase, windup, active) plays the same flying/hovering loop, a real
+    limitation the config comments call out rather than hide.
+    `Dragon_Hit` plays as a brief on-damage flinch - the one animated
+    hit-reaction any dragon has in this game (`onDamaged` → `hitFlareUntil`).
+    Native geometry is ~3.85 units tall (a full adult, not a whelp),
+    scaled down 0.6x.
+
+  Both scale the visual mesh only - the Rapier collider and hurtbox
+  radius are untouched by either archetype's scale factor. Crystalborn
+  dragons (both crystal spawns) still use `ember-wyrm`.
 - **Quest tracker + dialogue box**: a small always-on HUD panel
   (`src/ui/QuestTracker.ts`) tracks every not-yet-complete `QuestLog`
   quest live as its own card (there are two from the start now: tame a
@@ -229,18 +252,23 @@ not a wide desktop window shrunk down:
 
 ## What's stubbed / simplified
 
-- **The dragon asset's license/source isn't confirmed**: it was provided
-  directly by the project owner rather than sourced from a verified CC0
-  pack (Quaternius, Kenney, Gobkit, Sketchfab, and itch.io were all
-  blocked by this sandbox's network egress policy, and no GitHub-hosted
-  official CC0 dragon pack turned up in a fairly thorough search - the
-  KayKit org that the knight came from has no monster/creature pack at
-  all). Confirm licensing with the project owner before redistributing
-  this repository publicly. See `public/assets/CREDITS.md`.
-- **The dragon has no dedicated attack/hit/death animation clips** - only
-  Idle/Walk/Flap/Roar exist in the file, so the combat state graph reuses
-  Roar and Flap for those beats (see `Dragon.ts`). A richer dragon rig
-  with real attack/hit/death clips would read better.
+- **`dragon.glb` (the "Feral Wyrmling")'s license/source still isn't
+  confirmed**: it was provided directly by the project owner rather than
+  sourced from a verified CC0 pack. This is specifically about that one
+  file - `dragon-quaternius.glb` (see the bullet above and
+  `public/assets/CREDITS.md`) is a separate, since-added asset with a
+  fully verified CC0 license, found by searching GitHub-hosted mirrors of
+  known CC0 packs rather than the (blocked) original host sites
+  (quaternius.com, Kenney, Sketchfab, itch.io, OpenGameArt). Confirm
+  `dragon.glb`'s licensing with the project owner before redistributing
+  this repository publicly.
+- **Neither dragon asset has a dedicated attack clip, and only one has any
+  hit/death reaction at all**: `dragon.glb` ships Idle/Walk/Flap/Roar (no
+  hit/death - the combat state graph reuses Roar/Flap for windup/active,
+  see `Dragon.ts`); `dragon-quaternius.glb` ships only Flying/Hit (no
+  attack, idle, or walk clip - Flying covers every non-hit-reaction
+  state). A richer dragon rig with a full Idle/Walk/Attack/Hit/Death set
+  would read better than either.
 - **Gear's `armor` stat** is rolled but not applied yet (no incoming-damage
   mitigation system beyond Block exists).
 - **Mounted riding is ground-only** — no flight, no stamina cost, no
@@ -258,10 +286,14 @@ not a wide desktop window shrunk down:
   crystal stays gone.)
 - **Single zone, no zone transitions.**
 - **The generated-bestiary pipeline from the design doc isn't built**
-  (§2/§7/§10 there): this is still one dragon archetype (the whelp
-  `dragon.glb`), so there's no second rig to prove a modular
-  attachment/mask-texture/proportion system against yet, and no
-  KTX2/LOD/per-region-bundle pipeline (moot with one small model). A
+  (§2/§7/§10 there): there are now two dragon archetypes (`ember-wyrm`,
+  `quaternius-drake`), but they're two entirely separate, independently
+  rigged/animated assets wired in by hand (`DRAGON_MODEL_CONFIGS` in
+  `Dragon.ts`), not one shared skeleton driving modular
+  attachments/mask-texture palettes/proportion offsets the way the doc
+  describes - that system still needs building, this just gives it a
+  second real asset to eventually prove it against. No KTX2/LOD/
+  per-region-bundle pipeline either (moot with two small models). A
   fractured crystal's "dulled palette" is approximated with a flat
   material-color multiply (`applyFracturedTint` in `Dragon.ts`), not the
   doc's mask-texture tinting.
@@ -307,11 +339,12 @@ not a wide desktop window shrunk down:
    rhythm-tap"** — the design doc frames this as a real open decision
    (§4/§9.1) to test on a phone, not something to decide on paper; this
    round shipped rhythm-tap only.
-4. **"Start the generated-bestiary pipeline with a second archetype"** —
-   once a second rigged CC0 (or otherwise cleared) creature asset is
-   available, use it to prove out the design doc's Layer 1-4 modular
-   attachment/palette/proportion system (§2) against something beyond a
-   single hard-coded model.
+4. **"Start the generated-bestiary pipeline now that there are two
+   archetypes"** — `ember-wyrm` and `quaternius-drake` are two real,
+   independently rigged CC0 assets now (see "What's built"), so the
+   design doc's Layer 1-4 modular attachment/palette/proportion system
+   (§2) finally has something beyond a single hard-coded model to prove
+   itself against, rather than needing a third asset sourced first.
 5. **"Add more active abilities and turn the Ability Wheel into a real
    radial menu"** — give Blade/Ward/Bond a couple of tap-to-activate
    abilities beyond Riposte, and build the actual wheel UI to pick

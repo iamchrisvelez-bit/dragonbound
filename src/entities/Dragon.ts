@@ -23,22 +23,71 @@ const FLEE_SPEED = 4.5;
 const SPOOK_COOLDOWN_MS = 4500;
 const MAX_WARINESS = 5;
 
-// Animation state graph: clip names from the uploaded dragon_whelp.glb (see
-// public/assets/CREDITS.md). Only 4 clips exist - no dedicated attack/hit/
-// death - so Roar stands in as the windup telegraph and Flap as the
-// active-attack pose, both sped up to fit each pattern's actual timing
-// (same trick Knight.ts uses for its combo/dodge clips). Placeholder mesh
-// has no skeleton, so playAnimation() no-ops gracefully until the real
-// model (and its actions) has loaded.
-const ANIM_IDLE = 'Idle';
-const ANIM_WALK = 'Walk';
-const ANIM_FLAP = 'Flap';
-const ANIM_ROAR = 'Roar';
-const ANIMATION_CLIP_NAMES = [ANIM_IDLE, ANIM_WALK, ANIM_FLAP, ANIM_ROAR];
-const ONE_SHOT_ANIMATIONS = new Set([ANIM_FLAP, ANIM_ROAR]);
 const ANIMATION_CROSSFADE = 0.15;
-/** Visual-only scale-up so the (deliberately small, whelp-sized) model reads clearly in third-person combat. */
-const DRAGON_VISUAL_SCALE = 2.2;
+const HIT_FLARE_DURATION_MS = 500;
+
+/**
+ * Per-archetype model + animation-clip mapping. Each real dragon asset in
+ * this game has a different clip vocabulary (see CREDITS.md for each), so
+ * the state graph (updateAnimationMixer) reads clip names through this
+ * rather than fixed module constants. `windupClip`/`hitClip` are optional -
+ * an archetype without a dedicated telegraph or hit-reaction clip just
+ * falls back to its idle clip for that beat, no-oping gracefully rather
+ * than warning every frame. Placeholder mesh has no skeleton, so
+ * playAnimation() no-ops until the real model (and its actions) has loaded.
+ */
+interface DragonModelConfig {
+  /** AssetLoader model name - resolves to /assets/models/<modelName>.glb */
+  modelName: string;
+  idleClip: string;
+  walkClip: string;
+  windupClip: string | null;
+  activeClip: string;
+  /** Played briefly on taking damage, if the asset has a reaction clip - see onDamaged(). */
+  hitClip: string | null;
+  oneShotClips: string[];
+  /** Visual-only scale so each archetype's native mesh size reads well at combat distance without touching hit detection. */
+  visualScale: number;
+}
+
+const EMBER_WYRM_CONFIG: DragonModelConfig = {
+  // Clip names from the project owner's uploaded dragon_whelp.glb (see
+  // CREDITS.md). Only 4 clips exist - no dedicated attack/hit/death - so
+  // Roar stands in as the windup telegraph and Flap as the active-attack
+  // pose, both sped up to fit each pattern's actual timing (same trick
+  // Knight.ts uses for its combo/dodge clips).
+  modelName: 'dragon',
+  idleClip: 'Idle',
+  walkClip: 'Walk',
+  windupClip: 'Roar',
+  activeClip: 'Flap',
+  hitClip: null,
+  oneShotClips: ['Flap', 'Roar'],
+  visualScale: 2.2, // the whelp's own geometry is ~0.73 units tall - too small at combat distance, see loadRealModel()
+};
+
+const QUATERNIUS_DRAKE_CONFIG: DragonModelConfig = {
+  // Quaternius's "Animated Monster Pack" Dragon (CC0 1.0 Universal - see
+  // CREDITS.md for full sourcing/verification notes). Only 2 clips exist:
+  // Dragon_Flying (a hover/flight loop, used for every non-hit-reaction
+  // state - windup has no dedicated telegraph, so it just continues the
+  // idle/flying loop rather than warning every frame) and Dragon_Hit (a
+  // damage-reaction flinch - the one animated hit-reaction any dragon in
+  // this game has, see onDamaged()).
+  modelName: 'dragon-quaternius',
+  idleClip: 'Dragon_Flying',
+  walkClip: 'Dragon_Flying',
+  windupClip: null,
+  activeClip: 'Dragon_Flying',
+  hitClip: 'Dragon_Hit',
+  oneShotClips: ['Dragon_Hit'],
+  visualScale: 0.6, // this asset's native geometry is ~3.85 units tall (a full adult, not a whelp) - scaled down to read as bigger-but-comparable to the knight, not a tower
+};
+
+const DRAGON_MODEL_CONFIGS: Record<string, DragonModelConfig> = {
+  'ember-wyrm': EMBER_WYRM_CONFIG,
+  'quaternius-drake': QUATERNIUS_DRAKE_CONFIG,
+};
 
 type DragonPhase = 'idle' | 'chase' | 'windup' | 'active' | 'recovery';
 
@@ -79,6 +128,8 @@ export class Dragon extends Entity {
   private animActions = new Map<string, THREE.AnimationAction>();
   private currentAnimName: string | null = null;
   private bondFlareUntil = 0;
+  private hitFlareUntil = 0;
+  private readonly modelConfig: DragonModelConfig;
 
   constructor(
     world: RAPIER.World,
@@ -91,6 +142,7 @@ export class Dragon extends Entity {
     this.displayName = displayName;
     this.archetype = archetype;
     this.fractured = fractured;
+    this.modelConfig = DRAGON_MODEL_CONFIGS[archetype] ?? EMBER_WYRM_CONFIG;
     this.radius = 1.1;
 
     const built = buildDragonPlaceholder();
@@ -258,26 +310,31 @@ export class Dragon extends Entity {
    * of feral/tamed/ridden state, so the mixer never stalls. No-ops until
    * the real model (and its actions) has finished loading. */
   updateAnimationMixer(dt: number): void {
+    const config = this.modelConfig;
+
     if (this.riddenBy) {
-      this.playAnimation(this.isMovingExternally ? ANIM_WALK : ANIM_IDLE);
-    } else if (this.ai.state === 'bonding' && performance.now() < this.bondFlareUntil) {
-      this.playAnimation(ANIM_ROAR, 0.9);
+      this.playAnimation(this.isMovingExternally ? config.walkClip : config.idleClip);
+    } else if (this.ai.state === 'bonding' && config.windupClip && performance.now() < this.bondFlareUntil) {
+      this.playAnimation(config.windupClip, 0.9);
     } else if (this.ai.state !== 'feral') {
-      this.playAnimation(ANIM_IDLE);
+      if (config.hitClip && performance.now() < this.hitFlareUntil) this.playAnimation(config.hitClip, HIT_FLARE_DURATION_MS / 1000);
+      else this.playAnimation(config.idleClip);
     } else {
+      const isHitFlaring = config.hitClip && performance.now() < this.hitFlareUntil;
       switch (this.phase) {
         case 'idle':
         case 'recovery':
-          this.playAnimation(ANIM_IDLE);
+          this.playAnimation(isHitFlaring ? config.hitClip! : config.idleClip);
           break;
         case 'chase':
-          this.playAnimation(ANIM_WALK);
+          this.playAnimation(isHitFlaring ? config.hitClip! : config.walkClip);
           break;
         case 'windup':
-          this.playAnimation(ANIM_ROAR, this.currentAttack?.windup);
+          if (config.windupClip) this.playAnimation(config.windupClip, this.currentAttack?.windup);
+          else this.playAnimation(config.idleClip);
           break;
         case 'active':
-          this.playAnimation(ANIM_FLAP, this.currentAttack?.active);
+          this.playAnimation(config.activeClip, this.currentAttack?.active);
           break;
       }
     }
@@ -297,7 +354,7 @@ export class Dragon extends Entity {
     const previousName = this.currentAnimName;
     this.currentAnimName = name;
 
-    const oneShot = ONE_SHOT_ANIMATIONS.has(name);
+    const oneShot = this.modelConfig.oneShotClips.includes(name);
     const clipDuration = action.getClip().duration;
     action.reset();
     action.setLoop(oneShot ? THREE.LoopOnce : THREE.LoopRepeat, oneShot ? 1 : Infinity);
@@ -319,6 +376,7 @@ export class Dragon extends Entity {
 
   protected override onDamaged(amount: number): void {
     eventBus.emit('dragon:damaged', { dragonId: this.id, amount, currentHealth: this.health, maxHealth: this.maxHealth });
+    if (this.modelConfig.hitClip) this.hitFlareUntil = performance.now() + HIT_FLARE_DURATION_MS;
   }
 
   protected override onDeath(): void {
@@ -429,26 +487,26 @@ export class Dragon extends Entity {
   }
 
   private async loadRealModel(): Promise<void> {
-    const loaded = await assetLoader.loadModel('dragon', () => ({ scene: buildDragonPlaceholder().group, animations: [] }));
+    const config = this.modelConfig;
+    const loaded = await assetLoader.loadModel(config.modelName, () => ({ scene: buildDragonPlaceholder().group, animations: [] }));
     if (loaded.animations.length === 0) return;
     this.object3D.remove(this.visual);
     this.visual = loaded.scene;
-    // The whelp model's own geometry is ~0.73 units tall (a young dragon, by
-    // design - matches this zone's "Wyrmling" naming) - too small to read
-    // clearly at normal third-person combat distance, so it's scaled up for
-    // visibility. This only affects the rendered mesh: the Rapier collider
-    // and the CombatSystem hurtbox radius above are untouched, so hit
-    // detection isn't affected by this cosmetic resize.
-    this.visual.scale.setScalar(DRAGON_VISUAL_SCALE);
+    // Each archetype's native geometry is a different size (see
+    // DragonModelConfig.visualScale comments); this only affects the
+    // rendered mesh - the Rapier collider and the CombatSystem hurtbox
+    // radius above are untouched, so hit detection isn't affected.
+    this.visual.scale.setScalar(config.visualScale);
     this.eyeMaterials = []; // real assets telegraph via their own animations, not the placeholder's eye-flash hack
     if (this.fractured) applyFracturedTint(this.visual);
     this.object3D.add(this.visual);
 
     this.mixer = new THREE.AnimationMixer(this.visual);
-    for (const name of ANIMATION_CLIP_NAMES) {
+    const clipNames = new Set([config.idleClip, config.walkClip, config.activeClip, config.windupClip, config.hitClip].filter((n): n is string => !!n));
+    for (const name of clipNames) {
       const clip = THREE.AnimationClip.findByName(loaded.animations, name);
       if (clip) this.animActions.set(name, this.mixer.clipAction(clip));
-      else console.warn(`[Dragon] animation clip "${name}" not found in dragon.glb`);
+      else console.warn(`[Dragon] animation clip "${name}" not found in ${config.modelName}.glb`);
     }
   }
 }

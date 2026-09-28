@@ -30,9 +30,11 @@ export const startingZone: ZoneDefinition = {
     // A close pair, far enough from the solo wyrmling above that aggroing
     // one doesn't also pull it in - demonstrates AggroManager's pack-alert
     // radius pulling packmates into a fight without needing to design a
-    // whole multi-zone encounter.
-    { position: [11, 1, -10], displayName: 'Pack Wyrmling', archetype: 'ember-wyrm' },
-    { position: [13.5, 1, -11.5], displayName: 'Pack Wyrmling', archetype: 'ember-wyrm' },
+    // whole multi-zone encounter. A distinct archetype (see Dragon.ts's
+    // DRAGON_MODEL_CONFIGS) - a real, second, verified-CC0 rigged asset
+    // (see CREDITS.md), not just a recolor of the solo wyrmling.
+    { position: [11, 1, -10], displayName: 'Feral Drake', archetype: 'quaternius-drake' },
+    { position: [13.5, 1, -11.5], displayName: 'Feral Drake', archetype: 'quaternius-drake' },
   ],
   crystalSpawns: [
     // Close to spawn, in plain sight - the onboarding crystal (§3: "present
