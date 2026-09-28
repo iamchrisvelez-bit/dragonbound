@@ -15,6 +15,7 @@ import { playerStable } from '../taming/PlayerStable';
 import { progressionManager } from '../progression/ProgressionManager';
 import { rollGear } from '../progression/Gear';
 import { zoneLoader, startingZone } from '../world/ZoneLoader';
+import { buildSky } from '../world/Sky';
 import { Crystal } from '../world/Crystal';
 import { QuestLog, defaultQuests } from '../world/QuestLog';
 import { DialogueSystem } from '../world/DialogueSystem';
@@ -207,6 +208,7 @@ export class GameManager {
   private setupScene(): void {
     this.scene.background = new THREE.Color(0x0b0f1a);
     this.scene.fog = new THREE.Fog(0x0b0f1a, 22, 58);
+    buildSky(this.scene);
 
     const ambient = new THREE.AmbientLight(0x9fb4d8, 0.55);
     this.scene.add(ambient);
