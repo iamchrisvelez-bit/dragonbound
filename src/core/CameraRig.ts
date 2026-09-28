@@ -54,6 +54,9 @@ export class CameraRig {
 
   private raycaster = new THREE.Raycaster();
   private currentCamPos: THREE.Vector3 | null = null;
+  /** 0-1 trauma-style shake intensity; decays each frame, squared for the
+   * actual offset so small knocks barely register and big hits punch. */
+  private shakeTrauma = 0;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(fovForAspect(aspect), aspect, 0.1, 250);
@@ -63,6 +66,11 @@ export class CameraRig {
     this.camera.aspect = aspect;
     this.camera.fov = fovForAspect(aspect);
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Adds trauma (0-1, clamped); call on a landed hit or taking damage - see GameManager's combat/damage listeners. */
+  addShake(amount: number): void {
+    this.shakeTrauma = clamp(this.shakeTrauma + amount, 0, 1);
   }
 
   toggleLockOn(candidates: THREE.Object3D[]): void {
@@ -115,8 +123,26 @@ export class CameraRig {
     this.currentCamPos.lerp(desiredCamPos, clamp(dt * 12, 0, 1));
 
     this.camera.position.copy(this.currentCamPos);
+
+    if (this.shakeTrauma > 0.001) {
+      // Squared falloff (trauma^2) so small knocks barely register while a
+      // big hit still punches - a linear shake felt too noisy at low values.
+      const strength = this.shakeTrauma * this.shakeTrauma;
+      const t = performance.now() * 0.02;
+      this.camera.position.x += (pseudoNoise(t, 11.1) - 0.5) * strength * 0.5;
+      this.camera.position.y += (pseudoNoise(t, 47.7) - 0.5) * strength * 0.35;
+      this.shakeTrauma = Math.max(0, this.shakeTrauma - dt * 2.2);
+    }
+
     this.camera.lookAt(pivot);
   }
+}
+
+/** Cheap deterministic pseudo-random in [0,1) from two numbers - avoids
+ * pulling in a noise library just for a camera-shake wobble. */
+function pseudoNoise(a: number, b: number): number {
+  const v = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+  return v - Math.floor(v);
 }
 
 function pickNearest(from: THREE.Vector3, candidates: THREE.Object3D[]): THREE.Object3D | null {

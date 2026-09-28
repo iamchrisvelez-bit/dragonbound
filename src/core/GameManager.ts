@@ -21,6 +21,8 @@ import { DialogueSystem } from '../world/DialogueSystem';
 import { TouchControls } from '../ui/TouchControls';
 import { HUD } from '../ui/HUD';
 import { WorldHealthBars } from '../ui/WorldHealthBars';
+import { FloatingText } from '../ui/FloatingText';
+import { DeathScreen } from '../ui/DeathScreen';
 import { InventoryScreen } from '../ui/InventoryScreen';
 import { QuestTracker } from '../ui/QuestTracker';
 import { DialogueBox } from '../ui/DialogueBox';
@@ -68,6 +70,8 @@ export class GameManager {
   private touchControls!: TouchControls;
   private hud!: HUD;
   private worldHealthBars!: WorldHealthBars;
+  private floatingText!: FloatingText;
+  private deathScreen!: DeathScreen;
   private inventoryScreen!: InventoryScreen;
   private questTracker!: QuestTracker;
   private dialogueBox!: DialogueBox;
@@ -122,6 +126,8 @@ export class GameManager {
     this.touchControls = new TouchControls(this.input);
     this.hud = new HUD();
     this.worldHealthBars = new WorldHealthBars();
+    this.floatingText = new FloatingText();
+    this.deathScreen = new DeathScreen();
     this.inventoryScreen = new InventoryScreen();
     this.questTracker = new QuestTracker(this.questLog);
     this.dialogueBox = new DialogueBox(this.dialogueSystem);
@@ -255,6 +261,24 @@ export class GameManager {
       this.respawnTimer = RESPAWN_DELAY_SECONDS;
     });
 
+    // Combat "juice": floating damage numbers (the numeric half of the
+    // dragon-HP-bar fix - a bar shows the ratio, a number confirms exactly
+    // how much a hit did) plus a small camera-shake punch, bigger for the
+    // player taking a hit than for one they land.
+    eventBus.on('dragon:damaged', ({ dragonId, amount }) => {
+      const dragon = this.dragons.find((d) => d.id === dragonId);
+      if (!dragon) return;
+      const pos = dragon.object3D.position.clone().add(new THREE.Vector3(0, dragon.barAnchorHeight, 0));
+      this.floatingText.spawn(pos, `-${Math.round(amount)}`, 'damage');
+      this.cameraRig.addShake(0.12);
+    });
+
+    eventBus.on('player:damaged', ({ amount }) => {
+      const pos = this.knight.object3D.position.clone().add(new THREE.Vector3(0, 1.9, 0));
+      this.floatingText.spawn(pos, `-${Math.round(amount)}`, 'player-damage');
+      this.cameraRig.addShake(0.4);
+    });
+
     eventBus.on('taming:success', ({ dragonId }) => {
       this.questLog.updateStatus('tame-first-dragon', 'complete');
       progressionManager.grantSkillPoints(1);
@@ -356,6 +380,8 @@ export class GameManager {
 
     this.renderer.render(this.scene, this.cameraRig.camera);
     this.worldHealthBars.update(this.dragons, this.cameraRig.camera);
+    this.floatingText.update(dt, this.cameraRig.camera);
+    this.deathScreen.update(this.knight.alive, this.respawnTimer);
     this.updateHud();
 
     this.autosaveTimer += dt;
