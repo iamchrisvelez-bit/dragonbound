@@ -106,7 +106,7 @@ generated `dist/index.html`.
 | Ability wheel (Riposte parry, if Blade's "Riposte" is unlocked) | Ability button | Q | Y / Triangle |
 | Mount toggle (tap: start taming a wary dragon / mount or dismount a tamed one · hold: attune a nearby sealed crystal) | Mount button | F | RB / R1 |
 | Lock-on toggle | — (bind a button if desired) | C | Left stick click |
-| Inventory / skill tree | "Menu" button (top center) | I | — |
+| Pause / Settings / Inventory | "Menu" button (top center) | I opens Inventory directly | — |
 | Toggle background music | "Music: On/Off" button (top left) | — | — |
 
 Touch is the primary path; keyboard/gamepad are secondary dev-testing
@@ -311,6 +311,31 @@ not a wide desktop window shrunk down:
   UI taps. Eagerly precached (a few KB each) rather than runtime-cached
   like music, since combat shouldn't wait on a network fetch for its
   first swing sound.
+- **Combat feedback**: floating damage numbers (`src/ui/FloatingText.ts`)
+  on every hit, a trauma-based camera shake (`CameraRig.addShake`,
+  bigger for taking damage than for landing a hit), and a full-screen red
+  edge-flash (`src/ui/DamageVignette.ts`) when the player is hit.
+- **Ground telegraph rings** (`src/combat/GroundTelegraph.ts`): during a
+  dragon's attack windup, a pulsing ring shows *where* the hit will land
+  (centered on the dragon for Tail Sweep, tracking the player's live
+  position for Bite Lunge/Ember Breath), on top of the existing eye-glow
+  telegraph that only signals *that* something's coming.
+- **Title card, loading gate, death screen, Pilot Complete screen**: a
+  "DRAGONBOUND / Begin Your Journey" title card (`src/ui/StartScreen.ts`)
+  gates the intro dialogue - its button stays hidden behind a "Loading the
+  vale..." message until Knight/Dragon's real models finish loading
+  (capped at 8s), so gameplay never starts on visible placeholder meshes.
+  Dying shows a "You Have Fallen" respawn countdown
+  (`src/ui/DeathScreen.ts`) instead of a silent freeze-frame. Completing
+  both starter quests shows a dismissible "Pilot Complete"
+  (`src/ui/PilotCompleteScreen.ts`) - the vertical slice used to just
+  trail off into "nothing left to do" with no acknowledgment.
+- **Pause menu with persisted settings** (`src/ui/PauseMenu.ts`): the
+  "Menu" button now opens Pause first (Inventory is one tap deeper via
+  "Inventory & Skills") - music volume, SFX volume, camera sensitivity,
+  and invert-Y are all live sliders, persisted to `SaveData.settings` and
+  applied on load. "Restart Adventure" clears the save and reloads, for
+  testers who want a clean slate without devtools.
 
 ## What's stubbed / simplified
 
@@ -406,3 +431,9 @@ not a wide desktop window shrunk down:
 7. **"Add more zones and a zone transition system"** — a second zone
    definition, a loading/transition flow in `ZoneLoader`, and travel
    points or a portal to move between them.
+8. **"Package this as a native iOS/Android app"** — this is a mobile-web
+   PWA, not a native binary; actually shipping to the Apple App Store
+   needs a native wrapper (e.g. Capacitor) around this same web build,
+   Apple Developer Program enrollment, App Store-specific icons/splash
+   screens/screenshots, and a pass at Apple's Human Interface + App
+   Review guidelines. None of that is started yet.
