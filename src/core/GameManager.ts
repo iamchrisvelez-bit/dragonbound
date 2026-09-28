@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { InputManager } from './InputManager';
 import { CameraRig } from './CameraRig';
+import { AudioManager } from './AudioManager';
 import { SaveManager, createDefaultSave, type SaveData } from './SaveManager';
 import { eventBus } from './EventBus';
 import { Knight } from '../entities/Knight';
@@ -51,6 +52,7 @@ export class GameManager {
 
   private input = new InputManager();
   private saveManager = new SaveManager();
+  private audioManager = new AudioManager(['theme-1', 'theme-2', 'theme-6']);
   private tamingController = new TamingController();
   private crystalController = new CrystalController();
   private aggroManager = new AggroManager();
@@ -121,6 +123,7 @@ export class GameManager {
     this.questTracker = new QuestTracker(this.questLog);
     this.dialogueBox = new DialogueBox(this.dialogueSystem);
     this.buildMenuButton();
+    this.buildAudioToggle();
 
     this.wireEvents();
     eventBus.emit('save:loaded', {});
@@ -196,6 +199,43 @@ export class GameManager {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyI') this.inventoryScreen.toggle();
     });
+  }
+
+  private buildAudioToggle(): void {
+    // Same left column as the health/stamina bars, same row as Menu (see
+    // that method's comment on why top-row elements stack vertically
+    // instead of sharing a row on a narrow portrait screen) - left-aligned
+    // instead of centered so it doesn't collide with Menu there either.
+    const btn = document.createElement('button');
+    btn.textContent = 'Music: On';
+    btn.style.cssText = `
+      position: fixed;
+      top: max(46px, calc(env(safe-area-inset-top, 0px) + 46px));
+      left: max(14px, env(safe-area-inset-left, 0px));
+      z-index: 25;
+      background: rgba(11, 15, 26, 0.6);
+      color: #f2e9d8;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-family: system-ui, sans-serif;
+    `;
+    btn.addEventListener('click', () => {
+      const muted = this.audioManager.toggleMute();
+      btn.textContent = muted ? 'Music: Off' : 'Music: On';
+    });
+    document.body.appendChild(btn);
+
+    // Browsers refuse audio.play() before a real user gesture - the first
+    // pointerdown anywhere (whatever it's actually for - joystick, a
+    // button, the intro dialogue) unlocks it. Registered on the capture
+    // phase and deliberately never calls preventDefault/stopPropagation
+    // itself: several UI handlers (DialogueBox, TouchControls' buttons)
+    // call stopPropagation() on their own pointerdown, which would
+    // otherwise stop this from ever seeing the event if it only listened
+    // on the (default) bubble phase.
+    window.addEventListener('pointerdown', () => this.audioManager.start(), { once: true, capture: true });
   }
 
   private wireEvents(): void {

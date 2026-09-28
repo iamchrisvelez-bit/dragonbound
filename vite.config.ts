@@ -45,7 +45,14 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
         runtimeCaching: [
           {
-            urlPattern: /\/assets\/.*\.(glb|gltf|png|jpg|jpeg|webp|ktx2)$/,
+            // ogg/mp3 (background music, see AudioManager) are deliberately
+            // runtime-cached rather than added to globPatterns' eager
+            // precache list above - they're ambience, not required for the
+            // game to be playable, so they shouldn't add ~4MB to the
+            // up-front "installing this PWA" download. CacheFirst means
+            // each track is cached the first time it actually plays, so
+            // repeat/offline listening doesn't re-fetch it.
+            urlPattern: /\/assets\/.*\.(glb|gltf|png|jpg|jpeg|webp|ktx2|ogg|mp3)$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'dragonbound-assets',

@@ -20,6 +20,11 @@ public/assets/animations/*
 !public/assets/animations/.gitkeep
 public/assets/textures/*
 !public/assets/textures/.gitkeep
+public/assets/audio/music/*
+!public/assets/audio/music/.gitkeep
+!public/assets/audio/music/theme-1.ogg
+!public/assets/audio/music/theme-2.ogg
+!public/assets/audio/music/theme-6.ogg
 
 *.log
 .vscode/*

@@ -61,6 +61,7 @@ npm run preview      # serve the production build (also host:true)
 | Mount toggle (tap: start taming a wary dragon / mount or dismount a tamed one · hold: attune a nearby sealed crystal) | Mount button | F | RB / R1 |
 | Lock-on toggle | — (bind a button if desired) | C | Left stick click |
 | Inventory / skill tree | "Menu" button (top center) | I | — |
+| Toggle background music | "Music: On/Off" button (top left) | — | — |
 
 Touch is the primary path; keyboard/gamepad are secondary dev-testing
 paths — both drive the same `InputManager`, so gameplay code never knows
@@ -250,6 +251,13 @@ not a wide desktop window shrunk down:
   "Riding: `<name>`" badge - the ride mechanics themselves (drive the
   dragon from input, dismount placement, settle delay) shipped in the
   previous round; this is the visual polish pass on top.
+- **Background music**: `src/core/AudioManager.ts` loops a shuffled
+  3-track ambient playlist (see `public/assets/CREDITS.md` for the
+  CC0-verified source), advancing to the next track whenever one ends.
+  Starts on the first real tap/click anywhere (browsers won't allow
+  audio before a user gesture), and is toggleable via the "Music: On/Off"
+  HUD button. Runtime-cached rather than eagerly precached, so it doesn't
+  add to the PWA's up-front install download.
 
 ## What's stubbed / simplified
 
