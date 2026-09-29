@@ -53,7 +53,11 @@ export class StartScreen {
 
     const hint = document.createElement('div');
     hint.className = 'db-start-hint db-hidden';
-    hint.textContent = 'Tame or slay - the choice is yours.';
+    // Not "tame or slay" - Dragon.takeDamage() deliberately blocks lethal
+    // damage once a dragon leaves the feral state (see that file's comment:
+    // "keeps the vertical slice's win-state singular"), so slaying was
+    // never a real second ending to promise here.
+    hint.textContent = 'Weaken them. Earn their trust, not their end.';
     this.root.appendChild(hint);
 
     const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, MAX_WAIT_MS));
